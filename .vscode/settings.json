@@ -1,0 +1,7 @@
+{
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.typeCheckingMode": "off",
+  "autopep8.args": ["--max-line-length=220", "--ignore=E302"],
+  "cSpell.enableFiletypes": ["!python"],
+  "python.analysis.extraPaths": ["src"]
+}

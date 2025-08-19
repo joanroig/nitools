@@ -1,0 +1,13 @@
+{
+  "input_folder": "F:\\github\\nitools\\in",
+  "output_folder": "F:\\github\\nitools\\out",
+  "proc_output_folder": "F:\\github\\nitools\\out\\groups",
+  "trim_silence": true,
+  "normalize": true,
+  "enable_matrix": true,
+  "filter_pads": true,
+  "include_preview": true,
+  "fill_blanks": true,
+  "fill_blanks_path": "F:\\github\\nitools\\defaults\\.wav",
+  "json_path": "F:\\github\\nitools\\out\\all_groups.json"
+}
