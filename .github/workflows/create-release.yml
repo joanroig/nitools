@@ -15,8 +15,10 @@ on:
           - major
 
 jobs:
-  build:
-    runs-on: windows-latest
+  prepare_release:
+    runs-on: windows-latest # Run this job on a single OS
+    outputs:
+      app_version: ${{ steps.get_version.outputs.APP_VERSION }}
 
     steps:
       - name: Checkout code
@@ -26,6 +28,7 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
+          architecture: x64
 
       - name: Install dependencies
         run: python -m pip install -r requirements.txt --upgrade
@@ -59,23 +62,49 @@ jobs:
           git push origin $tag_name
         shell: bash
 
-      - name: Bundle application
-        run: powershell -ExecutionPolicy Bypass -File .\bundle_app.ps1
-        shell: pwsh
-
       - name: Get Version
         id: get_version
         run: |
-          $version = python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)" | ForEach-Object { $_.Trim() }
-          echo "APP_VERSION=$version" >> $env:GITHUB_OUTPUT
+          version=$(python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)")
+          echo "APP_VERSION=$version" >> $GITHUB_OUTPUT
+        shell: bash
+
+  build:
+    runs-on: ${{ matrix.os }}
+    needs: prepare_release # This job depends on prepare_release
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+          architecture: x64
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt --upgrade
+
+      - name: Bundle application (Windows)
+        if: runner.os == 'Windows'
+        run: powershell -ExecutionPolicy Bypass -File .\bundle_app_windows.ps1
         shell: pwsh
+
+      - name: Bundle application (macOS)
+        if: runner.os == 'macOS'
+        run: bash ./bundle_app_macos.sh
+        shell: bash
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ steps.get_version.outputs.APP_VERSION }}
-          files: ./dist/NITools_v${{ steps.get_version.outputs.APP_VERSION }}.zip
-          name: Release v${{ steps.get_version.outputs.APP_VERSION }}
+          tag_name: v${{ needs.prepare_release.outputs.app_version }}
+          files: ./dist/NITools_${{ runner.os }}_v${{ needs.prepare_release.outputs.app_version }}.zip
+          name: Release v${{ needs.prepare_release.outputs.app_version }}
           draft: false
           prerelease: false
           generate_release_notes: true
