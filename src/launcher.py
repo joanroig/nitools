@@ -27,9 +27,8 @@ class MainGUI(QtWidgets.QMainWindow):
         super().__init__()
         self.setWindowTitle("NITools")
 
-        self.resize(460, 480)
-        self.setMinimumSize(460, 480)
-        self.setMaximumSize(460, 480)
+        self.setMinimumSize(500, 480)
+        self.setMaximumSize(500, 480)
 
         self.central_widget = QtWidgets.QWidget()
         self.setCentralWidget(self.central_widget)
@@ -169,8 +168,8 @@ class MainGUI(QtWidgets.QMainWindow):
                 btn.setIconSize(QtCore.QSize(32, 32))
             btn.setFlat(True)
             btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
-            # Make buttons circular and hide default style
-            btn.setStyleSheet("border-radius: 12px; background-color: transparent;")
+            btn.setContentsMargins(5, 5, 5, 5)
+            btn.setFixedSize(40, 40)
             btn.clicked.connect(lambda checked, url=url: webbrowser.open(url))
             banner_layout.addWidget(btn)
 
@@ -231,11 +230,12 @@ class MainGUI(QtWidgets.QMainWindow):
         icon_path = get_bundled_path('img/icons/cog.png')
         if os.path.exists(icon_path):
             config_btn.setIcon(QtGui.QIcon(icon_path))
-            config_btn.setIconSize(QtCore.QSize(24, 24))  # Adjust size as needed
+            config_btn.setIconSize(QtCore.QSize(24, 24))
         config_btn.setFlat(True)
         config_btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
-        config_btn.setStyleSheet("border-radius: 12px; background-color: transparent;")
-        config_btn.clicked.connect(self.launch_config)  # Connect to a new method for config
+        config_btn.setContentsMargins(5, 5, 5, 5)
+        config_btn.setFixedSize(40, 40)
+        config_btn.clicked.connect(self.launch_config)
         return config_btn
 
     def launch_tool(self, tool_class):

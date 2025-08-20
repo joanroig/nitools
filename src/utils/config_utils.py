@@ -17,7 +17,7 @@ logger = Logger.get_logger("ConfigUtils", logging.DEBUG)
 
 DEFAULT_CONFIG = Config(
     version=CONFIG_VERSION,
-    style=Style.DARK,
+    style=Style.AUTO,
     groups_exporter=GroupsExporterConfig(
         input_folder=os.path.abspath('./in'),
         output_folder=os.path.abspath('./out'),

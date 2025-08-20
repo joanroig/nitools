@@ -57,7 +57,7 @@ class ConfigurationDialog(QDialog):
 
         # UI Style
         self.style_dropdown = QComboBox()
-        self.style_dropdown.addItems([Style.DARK, Style.LIGHT])
+        self.style_dropdown.addItems([style.value for style in Style])
         form_layout.addRow("UI Style:", self.style_dropdown)
 
         # Add form layout to main layout
