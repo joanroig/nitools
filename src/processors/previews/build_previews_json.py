@@ -4,6 +4,8 @@ import sys
 import winreg
 from pathlib import Path
 
+from utils.bundle_utils import get_bundled_path
+
 # Registry path to Native Instruments software
 REG_PATH = r"SOFTWARE\Native Instruments"
 
@@ -103,7 +105,7 @@ if __name__ == "__main__":
     output_folder = sys.argv[1]
 
     # --- Add this before running main ---
-    log_dir = output_folder
+    log_dir = get_bundled_path("out")
     os.makedirs(log_dir, exist_ok=True)
     log_path = os.path.join(log_dir, "_build_previews_log.txt")
     sys.stdout = Tee(sys.stdout, open(log_path, "w", encoding="utf-8"))
