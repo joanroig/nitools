@@ -25,13 +25,14 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: conda-incubator/setup-miniconda@v2
         with:
-          python-version: "3.10"
-          architecture: x64
+          miniconda-version: "latest"
+          auto-update-conda: true
+          activate-environment: nitools # Name of the environment in environment.yml
 
       - name: Install dependencies
-        run: python -m pip install -r requirements.txt --upgrade
+        run: conda env update -f environment.yml
 
       - name: Bump and Commit Version
         if: github.event.inputs.version_bump != 'none'
@@ -81,13 +82,14 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: conda-incubator/setup-miniconda@v2
         with:
-          python-version: "3.10"
-          architecture: x64
+          miniconda-version: "latest"
+          auto-update-conda: true
+          activate-environment: nitools # Name of the environment in environment.yml
 
       - name: Install dependencies
-        run: python -m pip install -r requirements.txt --upgrade
+        run: conda env update -f environment.yml
 
       - name: Bundle application (Windows)
         if: runner.os == 'Windows'
