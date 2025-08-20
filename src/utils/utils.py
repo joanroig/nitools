@@ -3,8 +3,7 @@ import uuid
 from datetime import datetime
 
 from PyQt6 import QtGui
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtWidgets import QApplication
 
 from utils.enums import Style
 
@@ -21,6 +20,24 @@ def sanitize(path):
 def get_current_datetime():
     """Returns the current datetime formatted as YYYY_MM_DD_HH_MM."""
     return datetime.now().strftime('%Y_%m_%d_%H_%M')
+
+def set_font_properties(widget, point_size=None, bold=None, italic=None):
+    """
+    Sets font properties for a given widget.
+    Args:
+        widget (QtWidgets.QWidget): The widget whose font is to be modified.
+        point_size (int, optional): The font size in points. Defaults to None.
+        bold (bool, optional): Whether the font should be bold. Defaults to None.
+        italic (bool, optional): Whether the font should be italic. Defaults to None.
+    """
+    font = widget.font()
+    if point_size is not None:
+        font.setPointSize(point_size)
+    if bold is not None:
+        font.setBold(bold)
+    if italic is not None:
+        font.setItalic(italic)
+    widget.setFont(font)
 
 def apply_style(style):
     if style == Style.LIGHT:

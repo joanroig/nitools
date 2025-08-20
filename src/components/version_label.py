@@ -1,6 +1,7 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QLabel
 
+from utils.utils import set_font_properties
 from utils.version import APP_VERSION_TEXT
 
 
@@ -11,4 +12,4 @@ class VersionLabel(QLabel):
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setWordWrap(True)
         self.setOpenExternalLinks(True)
-        self.setStyleSheet("color: gray; font: 8pt")
+        set_font_properties(self, point_size=8)

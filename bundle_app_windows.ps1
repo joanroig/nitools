@@ -11,9 +11,6 @@ if (Test-Path $distAppPath) {
     Remove-Item $distAppPath -Recurse -Force
 }
 
-# Activate the conda environment
-conda activate nitools
-
 # Fetch version number from src/utils/version.py
 $VERSION = python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)" | ForEach-Object { $_.Trim() }
 
@@ -36,7 +33,7 @@ python docs/makepdf.py README.md "$distAppPath/nitools-guide.pdf"
 Set-Location $distPath
 
 # Create the zip file with the version number
-$zipName = "NITools_v$VERSION.zip"
+$zipName = "NITools_windows_v$VERSION.zip"
 Compress-Archive -Path "NITools" -DestinationPath $zipName -Force
 
 # Return to original directory

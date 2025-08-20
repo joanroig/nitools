@@ -5,18 +5,21 @@ import traceback
 import webbrowser
 
 from PyQt6 import QtCore, QtGui, QtWidgets
-from PyQt6.QtCore import QSharedMemory, Qt  # Add QSharedMemory
-from PyQt6.QtWidgets import (QApplication, QHBoxLayout, QLabel,
-                             QListWidgetItem, QMessageBox, QPushButton,
-                             QSizePolicy, QVBoxLayout, QWidget)
+from PyQt6.QtCore import QSharedMemory
+from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from apps.groups_exporter_gui import GroupsExporterGUI
 from apps.previews_exporter_gui import PreviewsExporterGUI
 from components.version_label import VersionLabel
 from dialogs.configuration_dialog import ConfigurationDialog
+from dialogs.error_dialog import ErrorDialog
 from utils import logger
 from utils.bundle_utils import get_bundled_path
+from utils.config_utils import load_config
 from utils.logger import Logger
+from utils.utils import apply_style, set_font_properties
+
+logger = Logger.get_logger("Launcher", logging.DEBUG)
 
 
 class MainGUI(QtWidgets.QMainWindow):
@@ -62,7 +65,9 @@ class MainGUI(QtWidgets.QMainWindow):
         # Add a fixed-width spacer to balance the config button on the left
         # The width should ideally match the config_button's effective width
         dummy_spacer_width = config_button.sizeHint().width()
-        header_layout.addSpacerItem(QtWidgets.QSpacerItem(dummy_spacer_width, 0, QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Minimum))
+        header_layout.addSpacerItem(
+            QtWidgets.QSpacerItem(dummy_spacer_width, 0, QtWidgets.QSizePolicy.Policy.Fixed,
+                                  QtWidgets.QSizePolicy.Policy.Minimum))
 
         self.layout.addWidget(header_widget)  # Add the new header widget to the main layout
         self.layout.addSpacing(10)
@@ -100,10 +105,7 @@ class MainGUI(QtWidgets.QMainWindow):
         title_label.setFont(font)
 
         subtitle_label = QtWidgets.QLabel("Unofficial tools to convert NI resources")
-        subtitle_font = subtitle_label.font()
-        subtitle_font.setPointSize(10)
-        subtitle_label.setFont(subtitle_font)
-        subtitle_label.setStyleSheet("font-style: italic; color: gray;")
+        set_font_properties(subtitle_label, point_size=10, italic=True)
 
         title_text_layout.addWidget(title_label)
         title_text_layout.addWidget(subtitle_label)
@@ -149,10 +151,9 @@ class MainGUI(QtWidgets.QMainWindow):
         banner_layout.setSpacing(10)
 
         creator_label = QtWidgets.QLabel("Follow and stream to support me •ᴗ•")
-        creator_label.setStyleSheet("font-weight: bold;")
+        set_font_properties(creator_label, bold=True)
         banner_layout.addWidget(creator_label)
-        banner_layout.addStretch()  # Add growing space here
-
+        banner_layout.addStretch()
         # Clickable icons
         for name, url, icon_file in [
             ("Spotify", "https://open.spotify.com/artist/5Zt96vfBQXmUB3fs3Qkm5q", "img/icons/spotify.png"),
@@ -201,10 +202,7 @@ class MainGUI(QtWidgets.QMainWindow):
         title_label.setFont(title_font)
 
         description_label = QtWidgets.QLabel(description)
-        desc_font = description_label.font()
-        desc_font.setPointSize(9)
-        description_label.setFont(desc_font)
-        description_label.setStyleSheet("font-style: italic;")
+        set_font_properties(description_label, point_size=9, italic=True)
 
         text_layout.addWidget(title_label)
         text_layout.addWidget(description_label)
@@ -255,6 +253,7 @@ class MainGUI(QtWidgets.QMainWindow):
         dialog = ConfigurationDialog(self)
         dialog.exec()
 
+
 def handle_exception(exc_type, exc_value, exc_traceback):
     if issubclass(exc_type, KeyboardInterrupt):
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
@@ -266,18 +265,13 @@ def handle_exception(exc_type, exc_value, exc_traceback):
 
     try:
         if QApplication.instance() is not None:
-            error_dialog = QMessageBox(None)
-            error_dialog.setWindowTitle("Unexpected Error")
-            error_dialog.setIcon(QMessageBox.Icon.Warning)
-
-            # Main message
-            error_dialog.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            error_dialog.setText(error_msg)
-
-            # Expandable traceback
-            if trace:
-                error_dialog.setDetailedText(trace)
-                error_dialog.setTextFormat(Qt.TextFormat.PlainText)
+            error_dialog = ErrorDialog(
+                parent=None,
+                title="Unexpected Error",
+                message=error_msg,
+                detailed_text=trace,
+                icon=QMessageBox.Icon.Warning
+            )
 
             error_dialog.exec()
 
@@ -299,14 +293,36 @@ def main():
 
     if app.shared_memory.attach():
         # Another instance is running
-        QMessageBox.warning(None, "NITools Launcher", "NITools Launcher is already running.")
+        logger.info("Another instance of NITools Launcher is already running.")
+        error_dialog = ErrorDialog(
+            parent=None,
+            title="NITools Launcher",
+            message="NITools Launcher is already running.",
+            icon=QMessageBox.Icon.Warning
+        )
+        error_dialog.exec()
         sys.exit(0)
     else:
         # No other instance, try to create it
         if not app.shared_memory.create(1):  # Create a segment of 1 byte
             # Failed to create, possibly due to permissions or another race condition
-            QMessageBox.critical(None, "NITools Launcher", "Could not start NITools Launcher. Another instance might be starting or there's a permission issue.")
+            logger.critical(
+                "Could not start NITools Launcher. Another instance might be starting or there's a permission issue.")
+            error_dialog = ErrorDialog(
+                parent=None,
+                title="NITools Launcher",
+                message="Could not start NITools Launcher. Another instance might be starting or there's a permission issue.",
+                icon=QMessageBox.Icon.Critical
+            )
+            error_dialog.exec()
             sys.exit(1)
+
+    logger.info("NITools Launcher started.")
+
+    # Load and apply configuration
+    config = load_config()
+    apply_style(config.style)
+    logger.info(f"Applied UI style: {config.style}")
 
     main_window = MainGUI()
     main_window.show()

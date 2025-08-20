@@ -129,8 +129,7 @@ class ConfigurationDialog(QDialog):
 
         # Save the UI Style
         selected_style = self.style_dropdown.currentText()
-        self.config.style = selected_style
-
+        self.config.style = Style(selected_style)
         # Save the config
         save_config(self.config)
 

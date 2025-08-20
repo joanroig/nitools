@@ -1,4 +1,4 @@
-import json
+import json  # Keep json for tempfile operations
 import os
 import subprocess
 import sys
@@ -7,21 +7,10 @@ import tempfile
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from components.version_label import VersionLabel
+from utils import config_utils
 from utils.bundle_utils import get_bundled_path
 
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'gui_config.json')
-
-
-def load_config():
-    if os.path.isfile(CONFIG_PATH):
-        with open(CONFIG_PATH, 'r') as f:
-            return json.load(f)
-    return {}
-
-
-def save_config(config):
-    with open(CONFIG_PATH, 'w') as f:
-        json.dump(config, f, indent=2)
+from models.config import Config
 
 
 class MatrixEditor(QtWidgets.QWidget):
@@ -135,15 +124,18 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         self.setWindowIcon(QtGui.QIcon(get_bundled_path("img/logos/groups.png")))
         self.setWindowTitle('Groups Exporter')
         self.setGeometry(100, 100, 700, 800)
-        self.config = load_config()
+        self.config: Config = config_utils.load_config()
         self.worker = None
         self.progress_dialog = None
         self.cancelled = False
         self.init_ui()
         self.load_config_to_ui()
         default_json = os.path.abspath('./out/all_groups.json')
-        if os.path.isfile(default_json) and not self.json_path.text():
+        # Check if json_path is empty in config, then set default
+        if os.path.isfile(default_json) and not self.config.groups_exporter.json_path:
             self.json_path.setText(default_json)
+            self.config.groups_exporter.json_path = default_json
+            config_utils.save_config(self.config)
 
     def init_ui(self):
         main_layout = QtWidgets.QVBoxLayout()
@@ -296,6 +288,10 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         self.set_step2_enabled(False)
         self.json_path.textChanged.connect(self.on_json_path_changed)
         self.setup_config_signals()
+        # Connect enable checkboxes to update UI state
+        self.enable_matrix.stateChanged.connect(self._update_matrix_editor_state)
+        self.filter_pads.stateChanged.connect(self._update_pad_filter_editor_state)
+        self.on_json_path_changed()  # Call once to set initial state based on json_path
 
     def show_loading(self, message):
         self.cancelled = False
@@ -336,6 +332,7 @@ class GroupsExporterGUI(QtWidgets.QWidget):
 
     def setup_config_signals(self):
         # Save config on change
+        # The keys here should match the attribute names in GroupsExporterConfig
         for widget, key in [
             (self.input_folder, 'input_folder'),
             (self.output_folder, 'output_folder'),
@@ -358,44 +355,63 @@ class GroupsExporterGUI(QtWidgets.QWidget):
                 widget.stateChanged.connect(lambda val, k=key, w=widget: self.on_config_changed(k, w.isChecked()))
 
     def on_config_changed(self, key, value):
-        self.config[key] = value
-        save_config(self.config)
+        # Update the specific attribute in the groups_exporter sub-model
+        setattr(self.config.groups_exporter, key, value)
+        config_utils.save_config(self.config)
 
     def load_config_to_ui(self):
-        c = self.config
-        self.input_folder.setText(c.get('input_folder', os.path.abspath('./in')))
-        self.output_folder.setText(c.get('output_folder', os.path.abspath('./out')))
-        self.generate_txt.setChecked(c.get('generate_txt', False))
-        self.json_path.setText(c.get('json_path', ''))
-        self.proc_output_folder.setText(c.get('proc_output_folder', os.path.abspath('./out/groups')))
-        self.trim_silence.setChecked(c.get('trim_silence', True))
-        self.normalize.setChecked(c.get('normalize', True))
-        self.sample_rate.setText(c.get('sample_rate', ''))
-        self.bit_depth.setText(c.get('bit_depth', ''))
-        self.enable_matrix.setChecked(c.get('enable_matrix', True))
-        self.filter_pads.setChecked(c.get('filter_pads', True))
-        self.include_preview.setChecked(c.get('include_preview', True))
-        self.fill_blanks.setChecked(c.get('fill_blanks', True))
-        self.fill_blanks_path.setText(c.get('fill_blanks_path', os.path.abspath('./assets/.wav')))
+        c = self.config.groups_exporter
+        self.input_folder.setText(c.input_folder)
+        self.output_folder.setText(c.output_folder)
+        self.generate_txt.setChecked(c.generate_txt)
+        self.json_path.setText(c.json_path)
+        self.proc_output_folder.setText(c.proc_output_folder)
+        self.trim_silence.setChecked(c.trim_silence)
+        self.normalize.setChecked(c.normalize)
+        self.sample_rate.setText(c.sample_rate)
+        self.bit_depth.setText(c.bit_depth)
+        self.enable_matrix.setChecked(c.enable_matrix)
+        self.filter_pads.setChecked(c.filter_pads)
+        self.include_preview.setChecked(c.include_preview)
+        self.fill_blanks.setChecked(c.fill_blanks)
+        self.fill_blanks_path.setText(c.fill_blanks_path)
+
+    def _update_matrix_editor_state(self):
+        enabled = bool(self.json_path.text().strip()) and self.enable_matrix.isChecked()
+        self.matrix_editor.setEnabled(enabled)
+        self.matrix_toggle_btn.setEnabled(enabled)
+
+    def _update_pad_filter_editor_state(self):
+        enabled = bool(self.json_path.text().strip()) and self.filter_pads.isChecked()
+        self.pad_filter_editor.setEnabled(enabled)
+        self.pad_filter_toggle_btn.setEnabled(enabled)
 
     def set_step2_enabled(self, enabled):
         widgets = [
             self.proc_output_folder, self.proc_output_folder_btn,
             self.trim_silence, self.normalize,
-            self.matrix_editor,
-            self.pad_filter_editor,
             self.fill_blanks, self.fill_blanks_path, self.fill_blanks_path_btn,
             self.run_process_btn,
             self.sample_rate, self.bit_depth,
-            self.enable_matrix, self.include_preview
+            self.include_preview
         ]
         for w in widgets:
             w.setEnabled(enabled)
 
+        # Enable/disable the checkboxes themselves
+        self.enable_matrix.setEnabled(enabled)
+        self.filter_pads.setEnabled(enabled)
+
+        # Call the specific update methods to ensure matrix/filter editors and their toggles
+        # are correctly enabled/disabled based on both the overall step2 state AND their own checkboxes.
+        self._update_matrix_editor_state()
+        self._update_pad_filter_editor_state()
+
     def on_json_path_changed(self):
         enabled = bool(self.json_path.text().strip())
         self.set_step2_enabled(enabled)
-        self.on_config_changed('json_path', self.json_path.text().strip())
+        self._update_matrix_editor_state()
+        self._update_pad_filter_editor_state()
 
     def choose_input_folder(self):
         folder = QtWidgets.QFileDialog.getExistingDirectory(self, 'Select Input Folder', self.input_folder.text())
@@ -448,24 +464,24 @@ class GroupsExporterGUI(QtWidgets.QWidget):
             pad_filter_file_path = pad_filter_file.name
         script_path = os.path.join('src', 'processors', 'groups', 'process_groups_json.py')
         cmd = [sys.executable, script_path, json_path, output_folder]
-        if self.trim_silence.isChecked():
+        if self.config.groups_exporter.trim_silence:
             cmd.append('--trim_silence')
-        if self.normalize.isChecked():
+        if self.config.groups_exporter.normalize:
             cmd.append('--normalize')
-        cmd.extend(['--matrix_json', matrix_file_path])
-        cmd.append('--filter_pads')
-        cmd.extend(['--filter_pads_json', pad_filter_file_path])
-        if self.fill_blanks.isChecked():
+        if self.config.groups_exporter.enable_matrix:
+            cmd.extend(['--matrix_json', matrix_file_path])
+        if self.config.groups_exporter.filter_pads:
+            cmd.append('--filter_pads')
+            cmd.extend(['--filter_pads_json', pad_filter_file_path])
+        if self.config.groups_exporter.fill_blanks:
             cmd.append('--fill_blanks')
-        if self.fill_blanks_path.text().strip():
-            cmd.extend(['--fill_blanks_path', self.fill_blanks_path.text().strip()])
-        if self.sample_rate.text().strip():
-            cmd.extend(['--sample_rate', self.sample_rate.text().strip()])
-        if self.bit_depth.text().strip():
-            cmd.extend(['--bit_depth', self.bit_depth.text().strip()])
-        if self.enable_matrix.isChecked():
-            cmd.append('--enable_matrix')
-        if self.include_preview.isChecked():
+        if self.config.groups_exporter.fill_blanks_path:
+            cmd.extend(['--fill_blanks_path', self.config.groups_exporter.fill_blanks_path])
+        if self.config.groups_exporter.sample_rate:
+            cmd.extend(['--sample_rate', self.config.groups_exporter.sample_rate])
+        if self.config.groups_exporter.bit_depth:
+            cmd.extend(['--bit_depth', self.config.groups_exporter.bit_depth])
+        if self.config.groups_exporter.include_preview:
             cmd.append('--include_preview')
         self.log_output.append(f"Running: {' '.join(cmd)}")
         self.show_loading('Exporting groups...')
