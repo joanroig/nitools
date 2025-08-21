@@ -33,7 +33,7 @@ python docs/makepdf.py docs/GUIDE.md "$distAppPath/nitools-guide.pdf"
 cd "$distPath"
 
 # Create the zip file with the version number
-zipName="NITools_macos_v$VERSION.zip"
+zipName="NITools_macOS_v$VERSION.zip"
 zip -r "$zipName" "NITools"
 
 # Return to original directory

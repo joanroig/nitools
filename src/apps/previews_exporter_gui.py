@@ -32,7 +32,7 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowIcon(QtGui.QIcon(get_bundled_path("img/logos/previews.png")))
-        self.setWindowTitle('Previews Exporter')
+        self.setWindowTitle('NITools - Previews Exporter')
         self.setGeometry(100, 100, 700, 800)
         self.config: Config = config_utils.load_config()
         self.worker = None

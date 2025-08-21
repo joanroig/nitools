@@ -45,16 +45,19 @@
         <div style="margin-top: 4px;">Follow and stream to support me •ᴗ•</div>
         <div style="margin-top: 8px;">
           <a href="https://open.spotify.com/artist/5Zt96vfBQXmUB3fs3Qkm5q" target="_blank" aria-label="Moai Beats on Spotify">
-            <img src="img/icons/spotify.png" alt="Spotify" width="40" style="margin-right: 10px;">
+            <img src="img/icons/spotify.png" alt="Spotify" width="40">
           </a>
+          &nbsp;&nbsp;
           <a href="https://music.apple.com/es/artist/moai-beats/1466043534" target="_blank" aria-label="Moai Beats on Apple Music">
-            <img src="img/icons/applemusic.png" alt="Apple Music" width="40" style="margin-right: 10px;">
+            <img src="img/icons/applemusic.png" alt="Apple Music" width="40">
           </a>
+          &nbsp;&nbsp;
           <a href="http://youtube.com/moaibeats?sub_confirmation=1" target="_blank" aria-label="Moai Beats on YouTube">
-            <img src="img/icons/youtube.png" alt="YouTube" width="40" style="margin-right: 10px;">
+            <img src="img/icons/youtube.png" alt="YouTube" width="40" >
           </a>
+          &nbsp;&nbsp;
           <a href="https://moaibeats.bandcamp.com" target="_blank" aria-label="Moai Beats on Bandcamp">
-            <img src="img/icons/bandcamp.png" alt="Bandcamp" width="40" style="margin-right: 10px;">
+            <img src="img/icons/bandcamp.png" alt="Bandcamp" width="40" >
           </a>
         </div>
       </td>

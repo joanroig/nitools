@@ -33,7 +33,7 @@ python docs/makepdf.py docs/GUIDE.md "$distAppPath/nitools-guide.pdf"
 Set-Location $distPath
 
 # Create the zip file with the version number
-$zipName = "NITools_windows_v$VERSION.zip"
+$zipName = "NITools_Windows_v$VERSION.zip"
 Compress-Archive -Path "NITools" -DestinationPath $zipName -Force
 
 # Return to original directory

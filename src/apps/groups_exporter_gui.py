@@ -122,7 +122,7 @@ class GroupsExporterGUI(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowIcon(QtGui.QIcon(get_bundled_path("img/logos/groups.png")))
-        self.setWindowTitle('Groups Exporter')
+        self.setWindowTitle('NITools - Groups Exporter')
         self.setGeometry(100, 100, 700, 800)
         self.config: Config = config_utils.load_config()
         self.worker = None
