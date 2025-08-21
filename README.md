@@ -11,57 +11,34 @@
 </p>
 
 <p align="center">
-  <a href="https://www.python.org/">
-    <img src="https://img.shields.io/badge/Python-3.13%2B-blue?logo=python&logoColor=white" alt="Python 3.13"/>
-  </a>
-  <a href="https://github.com/joanroig/nitools/releases">
-    <img src="https://img.shields.io/github/v/release/joanroig/nitools?include_prereleases&label=version" />
-  </a>
-  <a href="https://github.com/joanroig/nitools/actions">
-    <img alt="GitHub Actions Status" src="https://img.shields.io/github/actions/workflow/status/joanroig/nitools/create-release.yml?branch=main">
-  </a>
-  <a href="https://github.com/joanroig/nitools/issues">
-    <img src="https://img.shields.io/github/issues/joanroig/nitools">
-  </a>
-  <a href="https://github.com/joanroig/nitools/blob/main/LICENSE">
-    <img alt="GPL-3.0 License" src="https://img.shields.io/github/license/joanroig/nitools?color=blue">
-  </a>
-  <a href="https://github.com/joanroig/nitools/stargazers">
-    <img src="https://img.shields.io/github/stars/joanroig/nitools">
-  </a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.13%2B-blue?logo=python&logoColor=white" alt="Python 3.13"/></a>
+  <a href="https://github.com/joanroig/nitools/releases"><img src="https://img.shields.io/github/v/release/joanroig/nitools?include_prereleases&label=version"/></a>
+  <a href="https://github.com/joanroig/nitools/actions"><img alt="GitHub Actions Status" src="https://img.shields.io/github/actions/workflow/status/joanroig/nitools/create-release.yml?branch=main"></a>
+  <a href="https://github.com/joanroig/nitools/issues"><img src="https://img.shields.io/github/issues/joanroig/nitools"></a>
+  <a href="https://github.com/joanroig/nitools/blob/main/LICENSE"><img alt="GPL-3.0 License" src="https://img.shields.io/github/license/joanroig/nitools?color=blue"></a>
+  <a href="https://github.com/joanroig/nitools/stargazers"><img src="https://img.shields.io/github/stars/joanroig/nitools"></a>
 </p>
 
 <p align="center">
-  <table align="center">
+  <table align="center" border="0" cellspacing="0" cellpadding="0">
     <tr>
-      <!-- Left: Moai icon -->
       <td valign="middle" style="padding-right: 20px;">
-        <a href="http://instagram.com/moaibeats" target="_blank" aria-label="Moai Beats on Instagram">
-          <img src="img/icons/moai.png" alt="Moai Beats" width="100">
-        </a>
+        <a href="http://instagram.com/moaibeats"><img src="img/icons/moai.png" alt="Moai Beats" width="100"></a>
       </td>
-      <td valign="middle" style="text-align: left;">
-        <div style="font-size: 18px; font-weight: bold;">Created by Moai beats</div>
-        <div style="margin-top: 4px;">Follow and stream to support me •ᴗ•</div>
-        <div style="margin-top: 8px;">
-          <a href="https://open.spotify.com/artist/5Zt96vfBQXmUB3fs3Qkm5q" target="_blank" aria-label="Moai Beats on Spotify">
-            <img src="img/icons/spotify.png" alt="Spotify" width="40">
-          </a>
+      <td valign="middle" align="left">
+        <p align="center"><b>Created by Moai Beats</b></br>Follow and stream to support me •ᴗ•</p>
+        <p align="center">
+          <a href="https://open.spotify.com/artist/5Zt96vfBQXmUB3fs3Qkm5q"><img src="img/icons/spotify.png" alt="Spotify" width="40"></a>
           &nbsp;&nbsp;
-          <a href="https://music.apple.com/es/artist/moai-beats/1466043534" target="_blank" aria-label="Moai Beats on Apple Music">
-            <img src="img/icons/applemusic.png" alt="Apple Music" width="40">
-          </a>
+          <a href="https://music.apple.com/es/artist/moai-beats/1466043534"><img src="img/icons/applemusic.png" alt="Apple Music" width="40"></a>
           &nbsp;&nbsp;
-          <a href="http://youtube.com/moaibeats?sub_confirmation=1" target="_blank" aria-label="Moai Beats on YouTube">
-            <img src="img/icons/youtube.png" alt="YouTube" width="40" >
-          </a>
+          <a href="http://youtube.com/moaibeats?sub_confirmation=1"><img src="img/icons/youtube.png" alt="YouTube" width="40"></a>
           &nbsp;&nbsp;
-          <a href="https://moaibeats.bandcamp.com" target="_blank" aria-label="Moai Beats on Bandcamp">
-            <img src="img/icons/bandcamp.png" alt="Bandcamp" width="40" >
-          </a>
-        </div>
+          <a href="https://moaibeats.bandcamp.com"><img src="img/icons/bandcamp.png" alt="Bandcamp" width="40"></a>
+        </p>
       </td>
     </tr>
+
   </table>
 </p>
 
@@ -84,12 +61,9 @@ The initial idea was to export Maschine groups to use them in the Roland SP 404 
 - **NKS Previews Exporter:** Convert NKS audio previews to WAV for one-shot instruments on other platforms.
 - **Battery Kits Exporter (WIP):** Early-stage tool to parse `.nbkt` kits for future export support.
 
-### Modules
+## Modules
 
-<div style="display: flex; align-items: center;">
-  <img alt="Groups Exporter" src="img/logos/groups.png" width="40px" style="margin-right: 20px;">
-  <h2>Groups Exporter (Maschine)</h2>
-</div>
+### <img alt="Groups Exporter" src="img/logos/groups.png" width="16px"> **Groups Exporter (Maschine)**
 
 - Scans a folder for all Maschine group files and parses sample data.
 - Configurable normalization, sample rate, bit depth, and silence trimming.
@@ -98,18 +72,12 @@ The initial idea was to export Maschine groups to use them in the Roland SP 404 
 - Option to fill blank pads with a default sample.
 - Option to include group preview samples.
 
-<div style="display: flex; align-items: center;">
-  <img alt="Previews Exporter" src="img/logos/previews.png" width="40px" style="margin-right: 20px;">
-  <h2>Previews Exporter (NKS)</h2>
-</div>
+### <img alt="Groups Exporter" src="img/logos/previews.png" width="16px"> **Previews Exporter (NKS)**
 
 - Converts NKS `.previews` to standardized WAV files for easy browsing outside NI software.
 - Configurable normalization, sample rate, bit depth, and silence trimming.
 
-<div style="display: flex; align-items: center;">
-  <img alt="Kits Exporter" src="img/logos/kits.png" width="40px" style="margin-right: 20px;">
-  <h2>Kits Exporter (Battery – WIP)</h2>
-</div>
+### <img alt="Kits Exporter" src="img/logos/kits.png" width="16px"> **Previews Exporter (NKS)**
 
 - Planned tool for exporting Battery kits, similar in functionality to the Maschine Groups Exporter.
 
