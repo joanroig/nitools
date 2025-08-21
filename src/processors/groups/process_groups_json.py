@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 
 from utils.audio_utils import trim_and_normalize_wav
@@ -21,12 +22,21 @@ DEFAULT_PAD_FILTER = {
 
 
 def pick_multisample_path(paths):
-    # Pick the one that ends with _C.wav or _C.* (case insensitive), else first
+    # Prioritize _C4, _C3
     for p in paths:
-        if os.path.splitext(p)[0].endswith('_C'):
+        base = os.path.splitext(p)[0].upper()  # case-insensitive
+        if base.endswith('_C4'):
             return p
-        if os.path.splitext(p)[0].endswith('_C3'):
+        if base.endswith('_C3'):
             return p
+
+    # Then match _C followed by any single digit
+    for p in paths:
+        base = os.path.splitext(p)[0].upper()
+        if re.search(r'_C\d$', base):
+            return p
+
+    # Fallback to the first path
     return paths[0]
 
 def process_group(

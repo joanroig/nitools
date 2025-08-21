@@ -1,4 +1,4 @@
-import json  # Keep json for tempfile operations
+import json
 import os
 import subprocess
 import sys
@@ -6,11 +6,11 @@ import tempfile
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
-from components.version_label import VersionLabel
+from components.bottom_banner import BottomBanner
+from components.resizable_log_splitter import ResizableLogSplitter
+from models.config import Config
 from utils import config_utils
 from utils.bundle_utils import get_bundled_path
-
-from models.config import Config
 
 
 class MatrixEditor(QtWidgets.QWidget):
@@ -140,11 +140,20 @@ class GroupsExporterGUI(QtWidgets.QWidget):
     def init_ui(self):
         main_layout = QtWidgets.QVBoxLayout()
         self.tabs = QtWidgets.QTabWidget()
+
         # --- Tab 1: Process groups ---
         self.tab_process = QtWidgets.QWidget()
         process_layout = QtWidgets.QVBoxLayout()
-        build_group = QtWidgets.QGroupBox('Step 1: Build JSON from .mxgrp')
-        build_layout = QtWidgets.QFormLayout()
+
+        # Step 1 label
+        step1_label = QtWidgets.QLabel("Step 1: Build JSON from .mxgrp")
+        step1_label.setStyleSheet("font-weight: bold;")
+        process_layout.addWidget(step1_label)
+
+        # Scrollable content
+        scroll_content = QtWidgets.QWidget()
+        build_layout = QtWidgets.QFormLayout(scroll_content)
+
         self.input_folder = QtWidgets.QLineEdit()
         self.input_folder_btn = QtWidgets.QPushButton('Choose')
         self.input_folder_btn.clicked.connect(self.choose_input_folder)
@@ -152,6 +161,7 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         input_folder_layout.addWidget(self.input_folder)
         input_folder_layout.addWidget(self.input_folder_btn)
         build_layout.addRow('Input folder:', input_folder_layout)
+
         self.output_folder = QtWidgets.QLineEdit()
         self.output_folder_btn = QtWidgets.QPushButton('Choose')
         self.output_folder_btn.clicked.connect(self.choose_output_folder)
@@ -159,18 +169,30 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         output_folder_layout.addWidget(self.output_folder)
         output_folder_layout.addWidget(self.output_folder_btn)
         build_layout.addRow('Output folder:', output_folder_layout)
+
         self.generate_txt = QtWidgets.QCheckBox('Generate TXT files')
         build_layout.addRow('', self.generate_txt)
+
+        scroll_area_process = QtWidgets.QScrollArea()
+        scroll_area_process.setWidgetResizable(True)
+        scroll_area_process.setWidget(scroll_content)  # Directly use container widget
+        process_layout.addWidget(scroll_area_process)
+
         self.run_build_btn = QtWidgets.QPushButton('Run build_json.py')
         self.run_build_btn.clicked.connect(self.run_build_json)
-        build_layout.addRow('', self.run_build_btn)
-        build_group.setLayout(build_layout)
-        process_layout.addWidget(build_group)
+        process_layout.addWidget(self.run_build_btn)
+
         self.tab_process.setLayout(process_layout)
         self.tabs.addTab(self.tab_process, 'Process groups')
+
         # --- Tab 2: Export groups ---
         self.tab_export = QtWidgets.QWidget()
         export_layout = QtWidgets.QVBoxLayout()
+
+        # Scrollable content for Tab 2
+        scrollable_content_export = QtWidgets.QWidget()
+        scrollable_content_export_layout = QtWidgets.QVBoxLayout()
+
         process_group = QtWidgets.QGroupBox('Step 2: Process groups')
         process_form_layout = QtWidgets.QFormLayout()
         self.json_path = QtWidgets.QLineEdit()
@@ -266,23 +288,34 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         fill_layout.addLayout(fill_blanks_path_layout)
         fill_group.setLayout(fill_layout)
         process_form_layout.addRow(fill_group)
+
+        process_group.setLayout(process_form_layout)
+        scrollable_content_export_layout.addWidget(process_group)
+
+        scrollable_content_export.setLayout(scrollable_content_export_layout)
+        scroll_area_export = QtWidgets.QScrollArea()
+        scroll_area_export.setWidgetResizable(True)
+        scroll_area_export.setWidget(scrollable_content_export)
+        export_layout.addWidget(scroll_area_export)
+
         self.run_process_btn = QtWidgets.QPushButton('Run process.py')
         self.run_process_btn.clicked.connect(self.run_process_py)
-        process_form_layout.addRow('', self.run_process_btn)
-        process_group.setLayout(process_form_layout)
-        export_layout.addWidget(process_group)
+        export_layout.addWidget(self.run_process_btn)
         self.tab_export.setLayout(export_layout)
         self.tabs.addTab(self.tab_export, 'Export groups')
-        main_layout.addWidget(self.tabs)
 
         # --- Log/output ---
         self.log_output = QtWidgets.QTextEdit()
         self.log_output.setReadOnly(True)
-        main_layout.addWidget(self.log_output)
+
+        # Create a splitter to make the log_output resizable
+        splitter = ResizableLogSplitter(self.config, self.tabs, self.log_output)
+        main_layout.addWidget(splitter)
 
         # --- Bottom banner ---
-        version = VersionLabel()
-        main_layout.addWidget(version)
+        self.bottom_banner = BottomBanner(self.config.groups_exporter.show_terminal)
+        self.bottom_banner.terminal_toggled.connect(self.toggle_terminal_visibility)
+        main_layout.addWidget(self.bottom_banner)
 
         self.setLayout(main_layout)
         self.set_step2_enabled(False)
@@ -292,6 +325,12 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         self.enable_matrix.stateChanged.connect(self._update_matrix_editor_state)
         self.filter_pads.stateChanged.connect(self._update_pad_filter_editor_state)
         self.on_json_path_changed()  # Call once to set initial state based on json_path
+        self.toggle_terminal_visibility(self.config.groups_exporter.show_terminal)
+
+    def toggle_terminal_visibility(self, state):
+        self.log_output.setVisible(state)
+        self.config.groups_exporter.show_terminal = state
+        config_utils.save_config(self.config)
 
     def show_loading(self, message):
         self.cancelled = False
@@ -343,16 +382,17 @@ class GroupsExporterGUI(QtWidgets.QWidget):
             (self.normalize, 'normalize'),
             (self.sample_rate, 'sample_rate'),
             (self.bit_depth, 'bit_depth'),
-            (self.enable_matrix, 'enable_matrix'),
-            (self.filter_pads, 'filter_pads'),
             (self.include_preview, 'include_preview'),
             (self.fill_blanks, 'fill_blanks'),
             (self.fill_blanks_path, 'fill_blanks_path'),
+            (self.bottom_banner.show_terminal_button, 'show_terminal'),
         ]:
             if isinstance(widget, QtWidgets.QLineEdit):
                 widget.textChanged.connect(lambda val, k=key: self.on_config_changed(k, val))
             elif isinstance(widget, QtWidgets.QCheckBox):
                 widget.stateChanged.connect(lambda val, k=key, w=widget: self.on_config_changed(k, w.isChecked()))
+            elif isinstance(widget, QtWidgets.QPushButton) and widget.isCheckable():
+                widget.toggled.connect(lambda val, k=key, w=widget: self.on_config_changed(k, w.isChecked()))
 
     def on_config_changed(self, key, value):
         # Update the specific attribute in the groups_exporter sub-model
@@ -375,6 +415,7 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         self.include_preview.setChecked(c.include_preview)
         self.fill_blanks.setChecked(c.fill_blanks)
         self.fill_blanks_path.setText(c.fill_blanks_path)
+        self.bottom_banner.show_terminal_button.setChecked(c.show_terminal)
 
     def _update_matrix_editor_state(self):
         enabled = bool(self.json_path.text().strip()) and self.enable_matrix.isChecked()
@@ -496,13 +537,15 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         self.worker.start()
 
     def on_subprocess_finished(self, code):
-        if code == 0:
+        if self.cancelled:
+            self.log_output.append('Operation cancelled by user.\n')
+        elif code == 0:
             self.log_output.append('Done\n')
             # Switch to Export groups tab if Process groups just finished
             if self.tabs.currentIndex() == 0:
                 self.tabs.setCurrentIndex(1)
         else:
-            self.log_output.append('Operation cancelled by user.\n')
+            self.log_output.append(f'Process finished with exit code {code}\n')
         self.run_build_btn.setEnabled(True)
         self.run_process_btn.setEnabled(True)
         self.hide_loading()

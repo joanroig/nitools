@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 
+
 class GroupsExporterConfig(BaseModel):
     """Configuration model for the Groups Exporter GUI."""
     input_folder: str = Field(default="./in", description="Input folder for .mxgrp files")
@@ -16,3 +17,4 @@ class GroupsExporterConfig(BaseModel):
     include_preview: bool = Field(default=True, description="Include preview samples in export")
     fill_blanks: bool = Field(default=True, description="Fill blank pads with a default sample")
     fill_blanks_path: str = Field(default="./assets/.wav", description="Path to the sample for filling blank pads")
+    show_terminal: bool = Field(default=True, description="Show terminal output at the bottom of the window")

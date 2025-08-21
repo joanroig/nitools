@@ -11,3 +11,4 @@ class PreviewsExporterConfig(BaseModel):
     normalize: bool = Field(default=True, description="Normalize samples")
     sample_rate: str = Field(default="", description="Target sample rate (e.g., '48000')")
     bit_depth: str = Field(default="", description="Target bit depth (e.g., '16')")
+    show_terminal: bool = Field(default=True, description="Show terminal output at the bottom of the window")

@@ -1,16 +1,14 @@
-import json
 import os
 import subprocess
 import sys
-import tempfile
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
-from components.version_label import VersionLabel
+from components.bottom_banner import BottomBanner
+from components.resizable_log_splitter import ResizableLogSplitter
+from models.config import Config
 from utils import config_utils
 from utils.bundle_utils import get_bundled_path
-
-from models.config import Config
 
 
 class WorkerThread(QtCore.QThread):
@@ -125,22 +123,30 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
         self.tab_process.setLayout(process_layout)
         self.tabs.addTab(self.tab_process, 'Process Previews')
 
-        main_layout.addWidget(self.tabs)
-
         # --- Log/output ---
         self.log_output = QtWidgets.QTextEdit()
         self.log_output.setReadOnly(True)
-        main_layout.addWidget(self.log_output)
+
+        # Create a splitter to make the log_output resizable
+        splitter = ResizableLogSplitter(self.config, self.tabs, self.log_output)
+        main_layout.addWidget(splitter)
 
         # --- Bottom banner ---
-        version = VersionLabel()
-        main_layout.addWidget(version)
+        self.bottom_banner = BottomBanner(self.config.previews_exporter.show_terminal)
+        self.bottom_banner.terminal_toggled.connect(self.toggle_terminal_visibility)
+        main_layout.addWidget(self.bottom_banner)
 
         self.setLayout(main_layout)
         self.set_step2_enabled(False)
         self.json_path.textChanged.connect(self.on_json_path_changed)
         self.setup_config_signals()
         self.on_json_path_changed()  # Call once to set initial state based on json_path
+        self.toggle_terminal_visibility(self.config.previews_exporter.show_terminal)
+
+    def toggle_terminal_visibility(self, state):
+        self.log_output.setVisible(state)
+        self.config.previews_exporter.show_terminal = state
+        config_utils.save_config(self.config)
 
     def show_loading(self, message):
         self.cancelled = False
@@ -190,11 +196,14 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
             (self.normalize, 'normalize'),
             (self.sample_rate, 'sample_rate'),
             (self.bit_depth, 'bit_depth'),
+            (self.bottom_banner.show_terminal_button, 'show_terminal'),
         ]:
             if isinstance(widget, QtWidgets.QLineEdit):
                 widget.textChanged.connect(lambda val, k=key: self.on_config_changed(k, val))
             elif isinstance(widget, QtWidgets.QCheckBox):
                 widget.stateChanged.connect(lambda val, k=key, w=widget: self.on_config_changed(k, w.isChecked()))
+            elif isinstance(widget, QtWidgets.QPushButton) and widget.isCheckable():
+                widget.toggled.connect(lambda val, k=key, w=widget: self.on_config_changed(k, w.isChecked()))
 
     def on_config_changed(self, key, value):
         # Update the specific attribute in the previews_exporter sub-model
@@ -210,6 +219,7 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
         self.normalize.setChecked(c.normalize)
         self.sample_rate.setText(c.sample_rate)
         self.bit_depth.setText(c.bit_depth)
+        self.bottom_banner.show_terminal_button.setChecked(c.show_terminal)
 
     def set_step2_enabled(self, enabled):
         widgets = [

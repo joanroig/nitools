@@ -10,6 +10,6 @@ class VersionLabel(QLabel):
         super().__init__(parent)
         self.setText(APP_VERSION_TEXT)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setWordWrap(True)
+        self.setWordWrap(False)
         self.setOpenExternalLinks(True)
         set_font_properties(self, point_size=8)

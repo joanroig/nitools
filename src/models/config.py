@@ -10,5 +10,6 @@ from utils.enums import Style
 class Config(BaseModel):
     version: str
     style: Style
+    log_panel_sizes: list[int] = []
     groups_exporter: GroupsExporterConfig = GroupsExporterConfig()
     previews_exporter: PreviewsExporterConfig = PreviewsExporterConfig()
