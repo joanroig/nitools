@@ -27,7 +27,7 @@ python -m PyInstaller `
     --distpath $distAppPath
 
 # Generate PDFs
-python docs/makepdf.py README.md "$distAppPath/nitools-guide.pdf"
+python docs/makepdf.py docs/GUIDE.md "$distAppPath/nitools-guide.pdf"
 
 # Change directory to dist
 Set-Location $distPath
