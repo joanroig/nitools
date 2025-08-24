@@ -7,6 +7,7 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QMessageBox, QPushButton
 
 from utils.bundle_utils import get_bundled_path
+from utils.constants import LOGS_PATH
 
 
 class ErrorDialog(QMessageBox):
@@ -30,6 +31,8 @@ class ErrorDialog(QMessageBox):
         if app_icon_path:
             self.setWindowIcon(QIcon(app_icon_path))
 
+        self.add_open_log_button()
+
     def add_open_location_button(self, path):
         open_button = QPushButton("Open Location")
         self.addButton(open_button, QMessageBox.ButtonRole.NoRole)
@@ -38,10 +41,25 @@ class ErrorDialog(QMessageBox):
         try:
             open_button.clicked.disconnect()
         except TypeError:
-            pass  # if nothing connected yet
+            pass
 
         # Connect custom slot
         open_button.clicked.connect(lambda: self._open_path(path))
+
+    def add_open_log_button(self):
+        log_file_path = os.path.join(LOGS_PATH, 'NITools.log')
+        if os.path.exists(log_file_path):
+            open_log_button = QPushButton("Open Log File")
+            self.addButton(open_log_button, QMessageBox.ButtonRole.ActionRole)
+
+            # Disconnect the default auto-close behavior
+            try:
+                open_log_button.clicked.disconnect()
+            except TypeError:
+                pass
+
+            # Connect custom slot
+            open_log_button.clicked.connect(lambda: self._open_path(log_file_path))
 
     def _open_path(self, path):
         """

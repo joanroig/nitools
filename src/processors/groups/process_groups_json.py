@@ -2,8 +2,14 @@ import json
 import os
 import re
 import shutil
+import sys
+import argparse
 
 from utils.audio_utils import trim_and_normalize_wav
+from utils.constants import LOGS_PATH
+from utils.logger import Logger
+
+logger = Logger.get_logger("GroupsProcessor")
 
 # Default Roland matrix from original pad -> target pad
 DEFAULT_MATRIX = {
@@ -114,7 +120,7 @@ def process_group(
 
                 source_path = os.path.join(base_path, source_rel_path)
                 if not os.path.isfile(source_path):
-                    print(f"Warning: source file not found {source_path}")
+                    logger.warning(f"Source file not found {source_path}")
                     continue
 
                 filename = os.path.basename(source_path)
@@ -124,10 +130,10 @@ def process_group(
                 try:
                     trim_and_normalize_wav(source_path, target_path, trim_silence_flag, normalize_flag, sample_rate, bit_depth)
                 except Exception as e:
-                    print(f"Error processing {source_path}: {e}")
+                    logger.error(f"Error processing {source_path}: {e}")
                     shutil.copy2(source_path, target_path)
 
-                print(f"Copied pad {original_pad:02d} -> target pad {target_pad:02d} file: {target_path}")
+                logger.info(f"Copied pad {original_pad:02d} -> target pad {target_pad:02d} file: {target_path}")
             else:
                 # Fill blank pad
                 if fill_blanks:
@@ -148,11 +154,11 @@ def process_group(
                         try:
                             trim_and_normalize_wav(source_path, target_path, trim_silence_flag, normalize_flag, sample_rate, bit_depth)
                         except Exception as e:
-                            print(f"Error processing {source_path}: {e}")
+                            logger.error(f"Error processing {source_path}: {e}")
                             shutil.copy2(source_path, target_path)
-                        print(f"Filled blank pad {original_pad:02d} -> target pad {target_pad:02d} with: {target_path}")
+                        logger.info(f"Filled blank pad {original_pad:02d} -> target pad {target_pad:02d} with: {target_path}")
                     else:
-                        print(f"No valid file to fill blank pad {original_pad:02d}")
+                        logger.warning(f"No valid file to fill blank pad {original_pad:02d}")
         # Include preview sample if enabled
         if include_preview:
             preview_dir = os.path.join(base_path, "Groups", "groups", ".previews")
@@ -161,14 +167,26 @@ def process_group(
                 preview_wav = os.path.join(group_folder, "Preview - " + group_name + ".wav")
                 try:
                     trim_and_normalize_wav(preview_file, preview_wav, trim_silence_flag, normalize_flag, sample_rate, bit_depth)
-                    print(f"Included preview sample: {preview_wav}")
+                    logger.info(f"Included preview sample: {preview_wav}")
                 except Exception as e:
-                    print(f"Error processing preview {preview_file}: {e}")
+                    logger.error(f"Error processing preview {preview_file}: {e}")
 
 
-if __name__ == "__main__":
-    import argparse
+class Tee:
+    def __init__(self, *files):
+        self.files = files
 
+    def write(self, obj):
+        for f in self.files:
+            f.write(obj)
+            f.flush()
+
+    def flush(self):
+        for f in self.files:
+            f.flush()
+
+
+def main():
     parser = argparse.ArgumentParser(description="group processor")
     parser.add_argument("json_path", help="Path to input JSON file")
     parser.add_argument("output_folder", help="Path to output base folder")
@@ -218,3 +236,12 @@ if __name__ == "__main__":
         enable_matrix=args.enable_matrix,
         include_preview=args.include_preview
     )
+
+
+if __name__ == "__main__":
+
+    log_path = os.path.join(LOGS_PATH, "_process_groups_log.txt")
+    sys.stdout = Tee(sys.stdout, open(log_path, "w", encoding="utf-8"))
+    sys.stderr = Tee(sys.stderr, open(log_path, "a", encoding="utf-8"))  # Redirect stderr to the same log file, append mode
+
+    main()

@@ -5,9 +5,12 @@ import sys
 import tempfile
 
 from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6.QtWidgets import QMessageBox
 
+from components.ansi_text_edit import AnsiTextEdit
 from components.bottom_banner import BottomBanner
 from components.resizable_log_splitter import ResizableLogSplitter
+from dialogs.error_dialog import ErrorDialog
 from models.config import Config
 from utils import config_utils
 from utils.bundle_utils import get_bundled_path
@@ -128,6 +131,8 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         self.worker = None
         self.progress_dialog = None
         self.cancelled = False
+        self.has_output = False
+        self.last_built_json_path = None
         self.init_ui()
         self.load_config_to_ui()
         default_json = os.path.abspath('./out/all_groups.json')
@@ -180,22 +185,22 @@ class GroupsExporterGUI(QtWidgets.QWidget):
 
         scroll_area_process = QtWidgets.QScrollArea()
         scroll_area_process.setWidgetResizable(True)
-        scroll_area_process.setWidget(scroll_content)  # Directly use container widget
+        scroll_area_process.setWidget(scroll_content)
         process_layout.addWidget(scroll_area_process)
 
-        self.run_build_btn = QtWidgets.QPushButton('Run build_json.py')
+        self.run_build_btn = QtWidgets.QPushButton('Process Groups')
         self.run_build_btn.clicked.connect(self.run_build_json)
         process_layout.addWidget(self.run_build_btn)
 
         self.tab_process.setLayout(process_layout)
-        self.tabs.addTab(self.tab_process, 'Process groups')
+        self.tabs.addTab(self.tab_process, 'Process Groups')
 
         # --- Tab 2: Export groups ---
         self.tab_export = QtWidgets.QWidget()
         export_layout = QtWidgets.QVBoxLayout()
 
         # Step 2 label
-        step2_label = QtWidgets.QLabel("Step 2: Process groups")
+        step2_label = QtWidgets.QLabel("Step 2: Export Groups")
         step2_label.setStyleSheet("font-weight: bold;")
         export_layout.addWidget(step2_label)
 
@@ -301,7 +306,8 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         self.fill_blanks = QtWidgets.QCheckBox('Fill blank pads')
         self.fill_blanks.setToolTip('If checked, blank pads will be filled with the specified sample or with random samples from the specified folder.')
         self.fill_blanks_path = QtWidgets.QLineEdit()
-        self.fill_blanks_path.setToolTip('Select the file or folder containing samples to fill blank pads.')
+        self.fill_blanks_path.setPlaceholderText('Path to sample or folder (leave blank for a default silence sample)')
+        self.fill_blanks_path.setToolTip('Select the file or folder containing samples to fill blank pads. If left blank, a default silence sample will be used.')
         self.fill_blanks_path_btn = QtWidgets.QPushButton('Choose')
         self.fill_blanks_path_btn.setToolTip('Browse for the fill blanks path.')
         self.fill_blanks_path_btn.clicked.connect(self.choose_fill_blanks_path)
@@ -322,14 +328,14 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         scroll_area_export.setWidget(scrollable_content_export)
         export_layout.addWidget(scroll_area_export)
 
-        self.run_process_btn = QtWidgets.QPushButton('Run process.py')
+        self.run_process_btn = QtWidgets.QPushButton('Export Groups')
         self.run_process_btn.clicked.connect(self.run_process_py)
         export_layout.addWidget(self.run_process_btn)
         self.tab_export.setLayout(export_layout)
-        self.tabs.addTab(self.tab_export, 'Export groups')
+        self.tabs.addTab(self.tab_export, 'Export Groups')
 
         # --- Log/output ---
-        self.log_output = QtWidgets.QTextEdit()
+        self.log_output = AnsiTextEdit()
         self.log_output.setReadOnly(True)
 
         # Create a splitter to make the log_output resizable
@@ -380,18 +386,9 @@ class GroupsExporterGUI(QtWidgets.QWidget):
             self.run_process_btn.setEnabled(True)
             self.hide_loading()
 
-    def on_subprocess_finished(self, code):
-        if self.cancelled:
-            self.log_output.append('Operation cancelled by user.\n')
-        elif code == 0:
-            self.log_output.append('Done\n')
-            if self.tabs.currentIndex() == 0:
-                self.tabs.setCurrentIndex(1)
-        else:
-            self.log_output.append(f'Process finished with exit code {code}\n')
-        self.run_build_btn.setEnabled(True)
-        self.run_process_btn.setEnabled(True)
-        self.hide_loading()
+    def on_worker_output(self, text):
+        self.log_output.append(text)
+        self.has_output = True
 
     def setup_config_signals(self):
         # Save config on change
@@ -515,6 +512,7 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         json_path = os.path.join(output_folder, 'all_groups.json')
         self.json_path.setText(json_path)
         self.proc_output_folder.setText(os.path.abspath('./out/groups'))
+        self.last_built_json_path = json_path
 
     def run_process_py(self):
         json_path = self.json_path.text().strip()
@@ -542,6 +540,8 @@ class GroupsExporterGUI(QtWidgets.QWidget):
             cmd.append('--fill_blanks')
         if self.config.groups_exporter.fill_blanks_path:
             cmd.extend(['--fill_blanks_path', self.config.groups_exporter.fill_blanks_path])
+        else:
+            cmd.extend(['--fill_blanks_path', get_bundled_path("./assets/.wav")])
         if self.config.groups_exporter.sample_rate:
             cmd.extend(['--sample_rate', self.config.groups_exporter.sample_rate])
         if self.config.groups_exporter.bit_depth:
@@ -555,8 +555,9 @@ class GroupsExporterGUI(QtWidgets.QWidget):
     def run_subprocess(self, cmd):
         self.run_build_btn.setEnabled(False)
         self.run_process_btn.setEnabled(False)
+        self.has_output = False  # Reset flag before new process
         self.worker = WorkerThread(cmd)
-        self.worker.output_signal.connect(self.log_output.append)
+        self.worker.output_signal.connect(self.on_worker_output)  # Connect to new slot
         self.worker.finished_signal.connect(self.on_subprocess_finished)
         self.worker.start()
 
@@ -565,11 +566,51 @@ class GroupsExporterGUI(QtWidgets.QWidget):
             self.log_output.append('Operation cancelled by user.\n')
         elif code == 0:
             self.log_output.append('Done\n')
-            # Switch to Export groups tab if Process groups just finished
-            if self.tabs.currentIndex() == 0:
-                self.tabs.setCurrentIndex(1)
+            # Check if the process was 'build_groups_json.py' and if there were any groups processed
+            if self.tabs.currentIndex() == 0 and self.last_built_json_path and os.path.exists(self.last_built_json_path):
+                try:
+                    with open(self.last_built_json_path, 'r') as f:
+                        data = json.load(f)
+                        if isinstance(data, list) and len(data) == 0:
+                            self.log_output.append('0 groups processed. Not switching tabs.\n')
+                            error_dialog = ErrorDialog(
+                                parent=self,
+                                title="No Groups Processed",
+                                message="No groups were found or processed. Please check your input folder and settings.",
+                                detailed_text="The build process completed successfully, but the resulting JSON file indicates that no groups were processed. This might be due to incorrect input folder, no .mxgrp files found, or filters preventing any groups from being included.",
+                                icon=QMessageBox.Icon.Information
+                            )
+                            error_dialog.exec()
+                            # Do not switch tabs if 0 groups were processed
+                        else:
+                            self.tabs.setCurrentIndex(1)
+                except json.JSONDecodeError:
+                    self.log_output.append('Error reading JSON file. Switching tabs anyway.\n')
+                    self.tabs.setCurrentIndex(1)
+                except Exception as e:
+                    self.log_output.append(f'An unexpected error occurred: {e}. Switching tabs anyway.\n')
+                    self.tabs.setCurrentIndex(1)
+            elif self.has_output:
+                # Only switch if successful AND there was output (for other processes)
+                if self.tabs.currentIndex() == 0:
+                    self.tabs.setCurrentIndex(1)
         else:
-            self.log_output.append(f'Process finished with exit code {code}\n')
+            error_message = f'Process finished with exit code {code}\n'
+            self.log_output.append(error_message)
+
+            full_log = self.log_output.toPlainText()
+            log_lines = full_log.splitlines()
+            # Take the last 20 lines as detailed error, or fewer if the log is shorter
+            detailed_error_text = "\n".join(log_lines[-20:])
+
+            error_dialog = ErrorDialog(
+                parent=self,
+                title="Subprocess Error",
+                message=f"A script finished with an error (exit code {code}). Please check the detailed log for more information.",
+                detailed_text=detailed_error_text,
+                icon=QMessageBox.Icon.Critical
+            )
+            error_dialog.exec()
         self.run_build_btn.setEnabled(True)
         self.run_process_btn.setEnabled(True)
         self.hide_loading()

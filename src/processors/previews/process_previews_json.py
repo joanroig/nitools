@@ -1,16 +1,15 @@
 import argparse
 import json
-import logging
+import os
+import sys
 from pathlib import Path
 
 from utils.audio_utils import trim_and_normalize_wav
+from utils.constants import LOGS_PATH
+from utils.logger import Logger
 
-# Configure logging
-logging.basicConfig(
-    filename="conversion_errors.log",
-    level=logging.ERROR,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logger = Logger.get_logger("PreviewsProcessor")
+
 
 def process_previews(
     json_path,
@@ -37,19 +36,33 @@ def process_previews(
                 trim_silence_flag=trim_silence_flag,
                 normalize_flag=normalize_flag,
                 sample_rate=sample_rate,
-                bit_depth=bit_depth
+                bit_depth=bit_depth,
             )
-            print(f"Converted {ogg_path} -> {wav_path}")
+            logger.info(f"Converted {ogg_path} -> {wav_path}")
         except Exception as e:
-            logging.error(f"Failed to convert {ogg_path}: {e}")
-            print(f"Error converting {ogg_path}, see log.")
+            logger.error(f"Failed to convert {ogg_path}: {e}")
+
+
+class Tee:
+    def __init__(self, *files):
+        self.files = files
+
+    def write(self, obj):
+        for f in self.files:
+            f.write(obj)
+            f.flush()
+
+    def flush(self):
+        for f in self.files:
+            f.flush()
+
 
 def main():
     parser = argparse.ArgumentParser(description="preview processor")
     parser.add_argument("json_path", help="Path to input JSON file")
     parser.add_argument("output_folder", help="Path to output base folder")
-    parser.add_argument("--trim_silence", action='store_true', help="Trim silence from wav files")
-    parser.add_argument("--normalize", action='store_true', help="Normalize wav files")
+    parser.add_argument("--trim_silence", action="store_true", help="Trim silence from wav files")
+    parser.add_argument("--normalize", action="store_true", help="Normalize wav files")
     parser.add_argument("--sample_rate", type=int, help="Convert all samples to this sample rate (e.g. 48000)")
     parser.add_argument("--bit_depth", type=int, help="Convert all samples to this bit depth (e.g. 16)")
 
@@ -61,9 +74,13 @@ def main():
         trim_silence_flag=args.trim_silence,
         normalize_flag=args.normalize,
         sample_rate=args.sample_rate,
-        bit_depth=args.bit_depth
+        bit_depth=args.bit_depth,
     )
 
 
 if __name__ == "__main__":
+    log_path = os.path.join(LOGS_PATH, "_process_previews_log.txt")
+    sys.stdout = Tee(sys.stdout, open(log_path, "w", encoding="utf-8"))
+    sys.stderr = Tee(sys.stderr, open(log_path, "a", encoding="utf-8"))  # Redirect stderr to the same log file, append mode
+
     main()

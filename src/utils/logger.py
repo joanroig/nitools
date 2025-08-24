@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 from logging.handlers import RotatingFileHandler
 
 import colorlog
@@ -53,3 +54,16 @@ class Logger:
 
         # Store the logger in the dictionary
         Logger._loggers[name] = self._logger
+
+        # Set up exception hook for unhandled exceptions
+        sys.excepthook = self.handle_exception
+
+    def handle_exception(self, exc_type, exc_value, exc_traceback):
+        if issubclass(exc_type, KeyboardInterrupt):
+            # Don't log keyboard interrupts
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+            return
+
+        self._logger.critical(
+            "Unhandled exception:", exc_info=(exc_type, exc_value, exc_traceback)
+        )

@@ -4,13 +4,13 @@ import sys
 import winreg
 from pathlib import Path
 
-from utils.bundle_utils import get_bundled_path
+from utils.constants import LOGS_PATH
+from utils.logger import Logger
 
-# Registry path to Native Instruments software
+logger = Logger.get_logger("PreviewsBuilder")
+
+# Registry path to Native Instruments registry
 REG_PATH = r"SOFTWARE\Native Instruments"
-
-# Output JSON file will be created in the output folder
-# OUTPUT_JSON = Path("samples.json")
 
 def get_registry_keys(base_key, path):
     """Return all subkeys in a given registry path."""
@@ -26,7 +26,7 @@ def get_registry_keys(base_key, path):
                 except OSError:
                     break
     except FileNotFoundError:
-        print(f"Registry path {path} not found.")
+        logger.warning(f"Registry path {path} not found.")
     return keys
 
 def get_content_dir(inst_name):
@@ -36,7 +36,7 @@ def get_content_dir(inst_name):
             value, _ = winreg.QueryValueEx(key, "ContentDir")
             return Path(value)
     except FileNotFoundError:
-        print(f"ContentDir for {inst_name} not found.")
+        logger.warning(f"ContentDir for {inst_name} not found.")
         return None
 
 def collect_samples(inst_name):
@@ -72,7 +72,7 @@ def main(output_folder: str):
     all_samples = []
     instrument_keys = get_registry_keys(winreg.HKEY_LOCAL_MACHINE, REG_PATH)
     for inst in instrument_keys:
-        print(f"Collecting samples for: {inst}")
+        logger.info(f"Collecting samples for: {inst}")
         all_samples.extend(collect_samples(inst))
 
     # Save to JSON
@@ -80,7 +80,7 @@ def main(output_folder: str):
     with open(output_json_path, "w", encoding="utf-8") as f:
         json.dump(all_samples, f, indent=4)
 
-    print(f"Exported {len(all_samples)} samples to {output_json_path}")
+    logger.info(f"Exported {len(all_samples)} samples to {output_json_path}")
 
 
 class Tee:
@@ -99,15 +99,13 @@ class Tee:
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print(f"Usage: python {sys.argv[0]} <output_folder>")
+        logger.error(f"Usage: python {sys.argv[0]} <output_folder>")
         sys.exit(1)
 
     output_folder = sys.argv[1]
 
-    # --- Add this before running main ---
-    log_dir = get_bundled_path("out")
-    os.makedirs(log_dir, exist_ok=True)
-    log_path = os.path.join(log_dir, "_build_previews_log.txt")
+    log_path = os.path.join(LOGS_PATH, "_build_previews_log.txt")
     sys.stdout = Tee(sys.stdout, open(log_path, "w", encoding="utf-8"))
+    sys.stderr = Tee(sys.stderr, open(log_path, "a", encoding="utf-8"))  # Redirect stderr to the same log file, append mode
 
     main(output_folder)

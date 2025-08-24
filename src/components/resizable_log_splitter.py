@@ -1,11 +1,12 @@
 from PyQt6 import QtCore, QtWidgets
 
+from components.ansi_text_edit import AnsiTextEdit
 from models.config import Config
 from utils import config_utils
 
 
 class ResizableLogSplitter(QtWidgets.QSplitter):
-    def __init__(self, config: Config, tabs_widget: QtWidgets.QTabWidget, log_output_widget: QtWidgets.QTextEdit, parent=None):
+    def __init__(self, config: Config, tabs_widget: QtWidgets.QTabWidget, log_output_widget: AnsiTextEdit, parent=None):
         super().__init__(QtCore.Qt.Orientation.Vertical, parent)
         self.config = config
         self.tabs_widget = tabs_widget

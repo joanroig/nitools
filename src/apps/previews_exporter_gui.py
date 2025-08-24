@@ -3,9 +3,12 @@ import subprocess
 import sys
 
 from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6.QtWidgets import QMessageBox
 
+from components.ansi_text_edit import AnsiTextEdit
 from components.bottom_banner import BottomBanner
 from components.resizable_log_splitter import ResizableLogSplitter
+from dialogs.error_dialog import ErrorDialog
 from models.config import Config
 from utils import config_utils
 from utils.bundle_utils import get_bundled_path
@@ -38,6 +41,7 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
         self.worker = None
         self.progress_dialog = None
         self.cancelled = False
+        self.has_output = False  # Initialize the flag
         self.init_ui()
         self.load_config_to_ui()
         default_json = os.path.abspath('./out/previews.json')
@@ -79,19 +83,19 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
         scroll_area_build.setWidget(scroll_content_build)
         build_layout.addWidget(scroll_area_build)
 
-        self.run_build_btn = QtWidgets.QPushButton('Run build_previews_json.py')
+        self.run_build_btn = QtWidgets.QPushButton('Process Previews')
         self.run_build_btn.clicked.connect(self.run_build_json)
         build_layout.addWidget(self.run_build_btn)
 
         self.tab_build.setLayout(build_layout)
-        self.tabs.addTab(self.tab_build, 'Build JSON')
+        self.tabs.addTab(self.tab_build, 'Process Previews')
 
         # --- Tab 2: Process Previews ---
         self.tab_process = QtWidgets.QWidget()
         process_layout = QtWidgets.QVBoxLayout()
 
         # Step 2 label
-        step2_label = QtWidgets.QLabel("Step 2: Process Previews")
+        step2_label = QtWidgets.QLabel("Step 2: Export Previews")
         step2_label.setStyleSheet("font-weight: bold;")
         process_layout.addWidget(step2_label)
 
@@ -151,15 +155,15 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
         scroll_area_process.setWidget(scrollable_content_process)
         process_layout.addWidget(scroll_area_process)
 
-        self.run_process_btn = QtWidgets.QPushButton('Run process_previews_json.py')
+        self.run_process_btn = QtWidgets.QPushButton('Export Previews')
         self.run_process_btn.clicked.connect(self.run_process_py)
         process_layout.addWidget(self.run_process_btn)
 
         self.tab_process.setLayout(process_layout)
-        self.tabs.addTab(self.tab_process, 'Process Previews')
+        self.tabs.addTab(self.tab_process, 'Export Previews')
 
         # --- Log/output ---
-        self.log_output = QtWidgets.QTextEdit()
+        self.log_output = AnsiTextEdit()
         self.log_output.setReadOnly(True)
 
         # Create a splitter to make the log_output resizable
@@ -207,22 +211,42 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
             self.run_process_btn.setEnabled(True)
             self.hide_loading()
 
+    def on_worker_output(self, text):
+        self.log_output.append(text)
+        self.has_output = True
+
     def on_subprocess_finished(self, code):
         if self.cancelled:
             self.log_output.append('Operation cancelled by user.\n')
-        elif code == 0:
+        elif code == 0 and self.has_output:  # Only switch if successful AND there was output
             self.log_output.append('Done\n')
             if self.tabs.currentIndex() == 0:
                 self.tabs.setCurrentIndex(1)
+        elif code == 0 and not self.has_output:  # If successful but no output, just say Done
+            self.log_output.append('Done\n')
         else:
-            self.log_output.append(f'Process finished with exit code {code}\n')
+            error_message = f'Process finished with exit code {code}\n'
+            self.log_output.append(error_message)
+
+            full_log = self.log_output.toPlainText()
+            log_lines = full_log.splitlines()
+            # Take the last 20 lines as detailed error, or fewer if the log is shorter
+            detailed_error_text = "\n".join(log_lines[-20:])
+
+            error_dialog = ErrorDialog(
+                parent=self,
+                title="Subprocess Error",
+                message=f"A script finished with an error (exit code {code}). Please check the detailed log for more information.",
+                detailed_text=detailed_error_text,
+                icon=QMessageBox.Icon.Critical
+            )
+            error_dialog.exec()
         self.run_build_btn.setEnabled(True)
         self.run_process_btn.setEnabled(True)
         self.hide_loading()
 
     def setup_config_signals(self):
-        # Save config on change
-        # The keys here should match the attribute names in PreviewsExporterConfig
+        # Save config on change, the keys here should match the attribute names in PreviewsExporterConfig
         for widget, key in [
             (self.output_folder, 'output_folder'),
             (self.json_path, 'json_path'),
@@ -290,7 +314,7 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
         script_path = os.path.join('src', 'processors', 'previews', 'build_previews_json.py')
         cmd = [sys.executable, script_path, output_folder]
         self.log_output.append(f"Running: {' '.join(cmd)}")
-        self.show_loading('Building previews JSON...')
+        self.show_loading('Processing previews...')
         self.run_subprocess(cmd)
         json_path = os.path.join(output_folder, 'previews.json')
         self.json_path.setText(json_path)
@@ -316,8 +340,9 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
     def run_subprocess(self, cmd):
         self.run_build_btn.setEnabled(False)
         self.run_process_btn.setEnabled(False)
+        self.has_output = False  # Reset flag before new process
         self.worker = WorkerThread(cmd)
-        self.worker.output_signal.connect(self.log_output.append)
+        self.worker.output_signal.connect(self.on_worker_output)  # Connect to new slot
         self.worker.finished_signal.connect(self.on_subprocess_finished)
         self.worker.start()
 

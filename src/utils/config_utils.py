@@ -7,34 +7,10 @@ from PyQt6.QtWidgets import QMessageBox
 
 from dialogs.error_dialog import ErrorDialog
 from models.config import Config
-from models.groups_exporter_config import GroupsExporterConfig
 from utils.constants import CONFIG_FILE
-from utils.enums import Style
 from utils.logger import Logger
-from utils.version import CONFIG_VERSION
 
 logger = Logger.get_logger("ConfigUtils", logging.DEBUG)
-
-DEFAULT_CONFIG = Config(
-    version=CONFIG_VERSION,
-    style=Style.AUTO,
-    groups_exporter=GroupsExporterConfig(
-        input_folder=os.path.abspath('./in'),
-        output_folder=os.path.abspath('./out'),
-        generate_txt=False,
-        json_path='',
-        proc_output_folder=os.path.abspath('./out/groups'),
-        trim_silence=True,
-        normalize=True,
-        sample_rate='',
-        bit_depth='',
-        enable_matrix=True,
-        filter_pads=True,
-        include_preview=True,
-        fill_blanks=True,
-        fill_blanks_path=os.path.abspath('./assets/.wav')
-    )
-)
 
 def migrate_config_data(data: dict) -> dict:
 
@@ -48,7 +24,7 @@ def migrate_config_data(data: dict) -> dict:
 def load_config():
     if not os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, 'w') as file:
-            file.write(DEFAULT_CONFIG.model_dump_json(indent=2))
+            file.write(Config().model_dump_json(indent=2))
     try:
         with open(CONFIG_FILE, 'r') as file:
             config_data = json.load(file)

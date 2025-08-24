@@ -5,6 +5,11 @@ import shutil
 import sys
 import zlib
 
+from utils.constants import LOGS_PATH
+from utils.logger import Logger
+
+logger = Logger.get_logger("GroupsBuilder")
+
 # --- Config ---
 MERGED_EXPANSIONS = {
     "Maschine 2": "Maschine 2 Factory Library",
@@ -68,7 +73,7 @@ def find_expansion_name(lines: list[str], folder_two_levels_up: str = None) -> s
                 if line1 == line2:
                     return line1
                 else:
-                    print(f"[!] Warning: Lines after 'serialization::archive' differ: '{line1}' != '{line2}'")
+                    logger.warning(f"Lines after 'serialization::archive' differ: '{line1}' != '{line2}'")
                     if folder_two_levels_up:
                         folder_name = os.path.basename(folder_two_levels_up).strip()
                         if folder_name.endswith("Library"):
@@ -186,14 +191,14 @@ def classify_samples(lines: list[str], group_name: str, expansion_name: str) -> 
     # --- Filter empty multisamples ---
     filtered_result = []
     for entry in result:
-        if entry["type"] == "multisample" and not entry["paths"]:
-            print(f"[!] Skipped empty multisample in: {group_name}")
+        if entry['type'] == "multisample" and not entry['paths']:
+            logger.warning(f"Skipped empty multisample in: {group_name}")
             continue
         filtered_result.append(entry)
 
     # --- Warn if more than 16 pads ---
     if len(filtered_result) > 16:
-        print(f"[!] group '{group_name}' has {len(filtered_result)} pads (more than 16).")
+        logger.warning(f"group '{group_name}' has {len(filtered_result)} pads (more than 16).")
 
     return filtered_result
 
@@ -271,7 +276,7 @@ def process_mxgrp_file(input_file: str, output_folder: str, generate_txt: bool =
 
     # Skip excluded expansions
     if expansion_name in EXCLUDED_EXPANSIONS:
-        print(f"[!] Skipped excluded expansion: {expansion_name} (group: {group_name})")
+        logger.info(f"Skipped excluded expansion: {expansion_name} (group: {group_name})")
         return None
 
     sample_data = classify_samples(filtered, group_name, expansion_name)
@@ -292,7 +297,6 @@ def process_mxgrp_file(input_file: str, output_folder: str, generate_txt: bool =
     if generate_txt:
         with open(output_filepath, "w", encoding="utf-8") as f:
             f.write('\n'.join(filtered))
-        # print(f"[+] Wrote cleaned TXT: {output_filepath}")
 
     abs_input_path = os.path.abspath(input_file)
     folder_two_levels_up = os.path.dirname(os.path.dirname(os.path.dirname(abs_input_path))).replace('\\', '/')
@@ -305,7 +309,7 @@ def process_mxgrp_file(input_file: str, output_folder: str, generate_txt: bool =
         "txt_file": output_filepath,
     }
 
-    print(f"[+] Processed group: {group_name}, expansion: {expansion_name}, samples: {len(sample_data)}")
+    logger.info(f"Processed group: {group_name}, expansion: {expansion_name}, samples: {len(sample_data)}")
     return group_info
 
 
@@ -317,7 +321,7 @@ def main(folder_in: str, folder_out: str, combined_json_name="all_groups.json", 
     clear_parsed_folder(folder_out)
 
     mxgrp_files = find_mxgrp_files(folder_in)
-    print(f"Found {len(mxgrp_files)} .mxgrp files to process.")
+    logger.info(f"Found {len(mxgrp_files)} .mxgrp files to process.")
 
     all_groups = []
 
@@ -329,19 +333,19 @@ def main(folder_in: str, folder_out: str, combined_json_name="all_groups.json", 
                 continue
 
             # Skip groups with no samples
-            if not group_data["samples"]:
-                print(f"[!] Skipped group with no samples: {group_data['group']}")
+            if not group_data['samples']:
+                logger.warning(f"Skipped group with no samples: {group_data['group']}")
                 continue
 
             all_groups.append(group_data)
         except Exception as e:
-            print(f"Error processing '{mxgrp_path}': {e}")
+            logger.error(f"Error processing '{mxgrp_path}': {e}")
 
     combined_json_path = os.path.join(folder_out, combined_json_name)
     with open(combined_json_path, "w", encoding="utf-8") as f:
         json.dump(all_groups, f, indent=2, ensure_ascii=False)
 
-    print(f"[+] All groups saved to {combined_json_path}")
+    logger.info(f"All groups saved to {combined_json_path}")
 
 
 class Tee:
@@ -361,15 +365,13 @@ class Tee:
 if __name__ == "__main__":
 
     if len(sys.argv) not in (3, 4):
-        print(f"Usage: python {sys.argv[0]} <input_folder> <output_folder> [generate_txt]")
-        print("generate_txt: optional, 'true' or 'false' (default: true)")
+        logger.error(f"Usage: python {sys.argv[0]} <input_folder> <output_folder> [generate_txt]")
+        logger.error("generate_txt: optional, 'true' or 'false' (default: true)")
         sys.exit(1)
 
-    # --- Add this before running main ---
-    log_dir = sys.argv[2]
-    os.makedirs(log_dir, exist_ok=True)
-    log_path = os.path.join(log_dir, "_build_groups_log.txt")
+    log_path = os.path.join(LOGS_PATH, "_build_groups_log.txt")
     sys.stdout = Tee(sys.stdout, open(log_path, "w", encoding="utf-8"))
+    sys.stderr = Tee(sys.stderr, open(log_path, "a", encoding="utf-8"))  # Redirect stderr to the same log file, append mode
 
     input_folder = sys.argv[1]
     output_folder = sys.argv[2]

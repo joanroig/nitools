@@ -16,5 +16,5 @@ class GroupsExporterConfig(BaseModel):
     filter_pads: bool = Field(default=True, description="Enable pad filtering by keywords")
     include_preview: bool = Field(default=True, description="Include preview samples in export")
     fill_blanks: bool = Field(default=True, description="Fill blank pads with a default sample")
-    fill_blanks_path: str = Field(default="./assets/.wav", description="Path to the sample for filling blank pads")
+    fill_blanks_path: str = Field(default="", description="Path to the sample or folder for filling blank pads. If empty, a default silence sample will be used.")
     show_terminal: bool = Field(default=True, description="Show terminal output at the bottom of the window")
