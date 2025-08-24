@@ -123,7 +123,7 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         super().__init__()
         self.setWindowIcon(QtGui.QIcon(get_bundled_path("img/logos/groups.png")))
         self.setWindowTitle('NITools - Groups Exporter')
-        self.setGeometry(100, 100, 700, 800)
+        self.setMinimumWidth(700)
         self.config: Config = config_utils.load_config()
         self.worker = None
         self.progress_dialog = None
@@ -155,7 +155,9 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         build_layout = QtWidgets.QFormLayout(scroll_content)
 
         self.input_folder = QtWidgets.QLineEdit()
+        self.input_folder.setToolTip('Select the folder containing your .mxgrp files.')
         self.input_folder_btn = QtWidgets.QPushButton('Choose')
+        self.input_folder_btn.setToolTip('Browse for the input folder.')
         self.input_folder_btn.clicked.connect(self.choose_input_folder)
         input_folder_layout = QtWidgets.QHBoxLayout()
         input_folder_layout.addWidget(self.input_folder)
@@ -163,7 +165,9 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         build_layout.addRow('Input folder:', input_folder_layout)
 
         self.output_folder = QtWidgets.QLineEdit()
+        self.output_folder.setToolTip('Select the folder where the generated JSON and optional TXT files will be saved.')
         self.output_folder_btn = QtWidgets.QPushButton('Choose')
+        self.output_folder_btn.setToolTip('Browse for the output folder.')
         self.output_folder_btn.clicked.connect(self.choose_output_folder)
         output_folder_layout = QtWidgets.QHBoxLayout()
         output_folder_layout.addWidget(self.output_folder)
@@ -171,6 +175,7 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         build_layout.addRow('Output folder:', output_folder_layout)
 
         self.generate_txt = QtWidgets.QCheckBox('Generate TXT files')
+        self.generate_txt.setToolTip('If checked, a .txt file will be generated for each group, listing its samples.')
         build_layout.addRow('', self.generate_txt)
 
         scroll_area_process = QtWidgets.QScrollArea()
@@ -189,21 +194,29 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         self.tab_export = QtWidgets.QWidget()
         export_layout = QtWidgets.QVBoxLayout()
 
+        # Step 2 label
+        step2_label = QtWidgets.QLabel("Step 2: Process groups")
+        step2_label.setStyleSheet("font-weight: bold;")
+        export_layout.addWidget(step2_label)
+
         # Scrollable content for Tab 2
         scrollable_content_export = QtWidgets.QWidget()
         scrollable_content_export_layout = QtWidgets.QVBoxLayout()
 
-        process_group = QtWidgets.QGroupBox('Step 2: Process groups')
         process_form_layout = QtWidgets.QFormLayout()
         self.json_path = QtWidgets.QLineEdit()
+        self.json_path.setToolTip('Select the JSON file generated in Step 1 (e.g., all_groups.json).')
         self.json_path_btn = QtWidgets.QPushButton('Choose')
+        self.json_path_btn.setToolTip('Browse for the JSON file.')
         self.json_path_btn.clicked.connect(self.choose_json_file)
         json_path_layout = QtWidgets.QHBoxLayout()
         json_path_layout.addWidget(self.json_path)
         json_path_layout.addWidget(self.json_path_btn)
         process_form_layout.addRow('JSON file:', json_path_layout)
         self.proc_output_folder = QtWidgets.QLineEdit()
+        self.proc_output_folder.setToolTip('Select the folder where the processed group samples will be exported.')
         self.proc_output_folder_btn = QtWidgets.QPushButton('Choose')
+        self.proc_output_folder_btn.setToolTip('Browse for the output folder.')
         self.proc_output_folder_btn.clicked.connect(self.choose_proc_output_folder)
         proc_output_folder_layout = QtWidgets.QHBoxLayout()
         proc_output_folder_layout.addWidget(self.proc_output_folder)
@@ -213,20 +226,25 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         # --- Options group ---
         options_group = QtWidgets.QGroupBox('Options')
         options_layout = QtWidgets.QVBoxLayout()
+        self.include_preview = QtWidgets.QCheckBox('Include preview samples')
+        self.include_preview.setToolTip('If checked, a short preview sample will be generated for each group.')
         self.trim_silence = QtWidgets.QCheckBox('Trim silence')
+        self.trim_silence.setToolTip('If checked, leading and trailing silence will be removed from samples.')
         self.normalize = QtWidgets.QCheckBox('Normalize')
+        self.normalize.setToolTip('If checked, audio samples will be normalized to a standard loudness level.')
         self.sample_rate = QtWidgets.QLineEdit()
         self.sample_rate.setPlaceholderText('Sample rate (e.g. 48000)')
+        self.sample_rate.setToolTip('Set the sample rate for exported audio (e.g., 44100, 48000). Leave blank for original.')
         self.bit_depth = QtWidgets.QLineEdit()
         self.bit_depth.setPlaceholderText('Bit depth (e.g. 16)')
-        self.include_preview = QtWidgets.QCheckBox('Include preview samples')
+        self.bit_depth.setToolTip('Set the bit depth for exported audio (e.g., 16, 24). Leave blank for original.')
+        options_layout.addWidget(self.include_preview)
         options_layout.addWidget(self.trim_silence)
         options_layout.addWidget(self.normalize)
         options_layout.addWidget(QtWidgets.QLabel('Sample rate:'))
         options_layout.addWidget(self.sample_rate)
         options_layout.addWidget(QtWidgets.QLabel('Bit depth:'))
         options_layout.addWidget(self.bit_depth)
-        options_layout.addWidget(self.include_preview)
         options_group.setLayout(options_layout)
         process_form_layout.addRow(options_group)
 
@@ -234,7 +252,9 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         matrix_group = QtWidgets.QGroupBox('Pad Reorder Matrix (4x4)')
         matrix_layout = QtWidgets.QVBoxLayout()
         self.enable_matrix = QtWidgets.QCheckBox('Enable matrix reorder')
+        self.enable_matrix.setToolTip('If checked, pads will be reordered according to the matrix below.')
         self.matrix_toggle_btn = QtWidgets.QPushButton('Show Matrix')
+        self.matrix_toggle_btn.setToolTip('Toggle the visibility of the pad reorder matrix editor.')
         self.matrix_editor = MatrixEditor({
             1: 13, 2: 14, 3: 15, 4: 16,
             5: 9, 6: 10, 7: 11, 8: 12,
@@ -256,7 +276,9 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         pad_filter_group = QtWidgets.QGroupBox('Pad Filter Keywords')
         pad_filter_layout = QtWidgets.QVBoxLayout()
         self.filter_pads = QtWidgets.QCheckBox('Enable pad filtering')
+        self.filter_pads.setToolTip('If checked, only groups where every pad matches at least one of its keywords will be included.')
         self.pad_filter_toggle_btn = QtWidgets.QPushButton('Show Pad Filter Editor')
+        self.pad_filter_toggle_btn.setToolTip('Toggle the visibility of the pad filter editor.')
         self.pad_filter_editor = PadFilterEditor({
             1: ["kick"],
             2: ["snare", "snap", "clap"],
@@ -277,8 +299,11 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         fill_group = QtWidgets.QGroupBox('Fill Blank Pads')
         fill_layout = QtWidgets.QVBoxLayout()
         self.fill_blanks = QtWidgets.QCheckBox('Fill blank pads')
+        self.fill_blanks.setToolTip('If checked, blank pads will be filled with the specified sample or with random samples from the specified folder.')
         self.fill_blanks_path = QtWidgets.QLineEdit()
+        self.fill_blanks_path.setToolTip('Select the file or folder containing samples to fill blank pads.')
         self.fill_blanks_path_btn = QtWidgets.QPushButton('Choose')
+        self.fill_blanks_path_btn.setToolTip('Browse for the fill blanks path.')
         self.fill_blanks_path_btn.clicked.connect(self.choose_fill_blanks_path)
         fill_blanks_path_layout = QtWidgets.QHBoxLayout()
         fill_blanks_path_layout.addWidget(self.fill_blanks_path)
@@ -289,8 +314,7 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         fill_group.setLayout(fill_layout)
         process_form_layout.addRow(fill_group)
 
-        process_group.setLayout(process_form_layout)
-        scrollable_content_export_layout.addWidget(process_group)
+        scrollable_content_export_layout.addLayout(process_form_layout)  # Add the form layout directly
 
         scrollable_content_export.setLayout(scrollable_content_export_layout)
         scroll_area_export = QtWidgets.QScrollArea()

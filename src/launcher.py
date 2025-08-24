@@ -21,6 +21,14 @@ from utils.utils import apply_style, set_font_properties
 
 logger = Logger.get_logger("Launcher", logging.DEBUG)
 
+class CustomApplication(QtWidgets.QApplication):
+    def notify(self, obj, event):
+        try:
+            return super().notify(obj, event)
+        except Exception:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            handle_exception(exc_type, exc_value, exc_traceback)
+            return False  # Stop event processing
 
 class MainGUI(QtWidgets.QMainWindow):
     def __init__(self):
@@ -281,7 +289,7 @@ def handle_exception(exc_type, exc_value, exc_traceback):
 
 def main():
     sys.excepthook = handle_exception
-    app = QtWidgets.QApplication(sys.argv)
+    app = CustomApplication(sys.argv)
 
     # Single instance check
     unique_key = "NIToolsLauncherSingleInstance"

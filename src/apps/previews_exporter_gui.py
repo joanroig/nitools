@@ -33,7 +33,7 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
         super().__init__()
         self.setWindowIcon(QtGui.QIcon(get_bundled_path("img/logos/previews.png")))
         self.setWindowTitle('NITools - Previews Exporter')
-        self.setGeometry(100, 100, 700, 800)
+        self.setMinimumWidth(700)
         self.config: Config = config_utils.load_config()
         self.worker = None
         self.progress_dialog = None
@@ -54,34 +54,57 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
         # --- Tab 1: Build JSON ---
         self.tab_build = QtWidgets.QWidget()
         build_layout = QtWidgets.QVBoxLayout()
-        build_group = QtWidgets.QGroupBox('Step 1: Build JSON from Previews')
-        build_form_layout = QtWidgets.QFormLayout()
+
+        # Step 1 label
+        step1_label = QtWidgets.QLabel("Step 1: Build JSON from Previews")
+        step1_label.setStyleSheet("font-weight: bold;")
+        build_layout.addWidget(step1_label)
+
+        # Scrollable content
+        scroll_content_build = QtWidgets.QWidget()
+        build_form_layout = QtWidgets.QFormLayout(scroll_content_build)
 
         self.output_folder = QtWidgets.QLineEdit()
+        self.output_folder.setToolTip('Select the folder where the generated JSON file will be saved.')
         self.output_folder_btn = QtWidgets.QPushButton('Choose')
+        self.output_folder_btn.setToolTip('Browse for the output folder.')
         self.output_folder_btn.clicked.connect(self.choose_output_folder)
         output_folder_layout = QtWidgets.QHBoxLayout()
         output_folder_layout.addWidget(self.output_folder)
         output_folder_layout.addWidget(self.output_folder_btn)
         build_form_layout.addRow('Output folder:', output_folder_layout)
 
+        scroll_area_build = QtWidgets.QScrollArea()
+        scroll_area_build.setWidgetResizable(True)
+        scroll_area_build.setWidget(scroll_content_build)
+        build_layout.addWidget(scroll_area_build)
+
         self.run_build_btn = QtWidgets.QPushButton('Run build_previews_json.py')
         self.run_build_btn.clicked.connect(self.run_build_json)
-        build_form_layout.addRow('', self.run_build_btn)
+        build_layout.addWidget(self.run_build_btn)
 
-        build_group.setLayout(build_form_layout)
-        build_layout.addWidget(build_group)
         self.tab_build.setLayout(build_layout)
         self.tabs.addTab(self.tab_build, 'Build JSON')
 
         # --- Tab 2: Process Previews ---
         self.tab_process = QtWidgets.QWidget()
         process_layout = QtWidgets.QVBoxLayout()
-        process_group = QtWidgets.QGroupBox('Step 2: Process Previews')
+
+        # Step 2 label
+        step2_label = QtWidgets.QLabel("Step 2: Process Previews")
+        step2_label.setStyleSheet("font-weight: bold;")
+        process_layout.addWidget(step2_label)
+
+        # Scrollable content for Tab 2
+        scrollable_content_process = QtWidgets.QWidget()
+        scrollable_content_process_layout = QtWidgets.QVBoxLayout()
+
         process_form_layout = QtWidgets.QFormLayout()
 
         self.json_path = QtWidgets.QLineEdit()
+        self.json_path.setToolTip('Select the JSON file generated in Step 1 (e.g., previews.json).')
         self.json_path_btn = QtWidgets.QPushButton('Choose')
+        self.json_path_btn.setToolTip('Browse for the JSON file.')
         self.json_path_btn.clicked.connect(self.choose_json_file)
         json_path_layout = QtWidgets.QHBoxLayout()
         json_path_layout.addWidget(self.json_path)
@@ -89,7 +112,9 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
         process_form_layout.addRow('JSON file:', json_path_layout)
 
         self.proc_output_folder = QtWidgets.QLineEdit()
+        self.proc_output_folder.setToolTip('Select the folder where the processed preview samples will be exported.')
         self.proc_output_folder_btn = QtWidgets.QPushButton('Choose')
+        self.proc_output_folder_btn.setToolTip('Browse for the output folder.')
         self.proc_output_folder_btn.clicked.connect(self.choose_proc_output_folder)
         proc_output_folder_layout = QtWidgets.QHBoxLayout()
         proc_output_folder_layout.addWidget(self.proc_output_folder)
@@ -100,11 +125,15 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
         options_group = QtWidgets.QGroupBox('Options')
         options_layout = QtWidgets.QVBoxLayout()
         self.trim_silence = QtWidgets.QCheckBox('Trim silence')
+        self.trim_silence.setToolTip('If checked, leading and trailing silence will be removed from samples.')
         self.normalize = QtWidgets.QCheckBox('Normalize')
+        self.normalize.setToolTip('If checked, audio samples will be normalized to a standard loudness level.')
         self.sample_rate = QtWidgets.QLineEdit()
         self.sample_rate.setPlaceholderText('Sample rate (e.g. 48000)')
+        self.sample_rate.setToolTip('Set the sample rate for exported audio (e.g., 44100, 48000). Leave blank for original.')
         self.bit_depth = QtWidgets.QLineEdit()
         self.bit_depth.setPlaceholderText('Bit depth (e.g. 16)')
+        self.bit_depth.setToolTip('Set the bit depth for exported audio (e.g., 16, 24). Leave blank for original.')
         options_layout.addWidget(self.trim_silence)
         options_layout.addWidget(self.normalize)
         options_layout.addWidget(QtWidgets.QLabel('Sample rate:'))
@@ -114,12 +143,18 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
         options_group.setLayout(options_layout)
         process_form_layout.addRow(options_group)
 
+        scrollable_content_process_layout.addLayout(process_form_layout)
+
+        scrollable_content_process.setLayout(scrollable_content_process_layout)
+        scroll_area_process = QtWidgets.QScrollArea()
+        scroll_area_process.setWidgetResizable(True)
+        scroll_area_process.setWidget(scrollable_content_process)
+        process_layout.addWidget(scroll_area_process)
+
         self.run_process_btn = QtWidgets.QPushButton('Run process_previews_json.py')
         self.run_process_btn.clicked.connect(self.run_process_py)
-        process_form_layout.addRow('', self.run_process_btn)
+        process_layout.addWidget(self.run_process_btn)
 
-        process_group.setLayout(process_form_layout)
-        process_layout.addWidget(process_group)
         self.tab_process.setLayout(process_layout)
         self.tabs.addTab(self.tab_process, 'Process Previews')
 
