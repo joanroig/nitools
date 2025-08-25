@@ -51,7 +51,6 @@ class AnsiTextEdit(QtWidgets.QTextEdit):
     def append(self, text):
         html_text = self._ansi_to_html(text)
         super().append(html_text)
-        self.verticalScrollBar().setValue(self.verticalScrollBar().maximum())
 
         # Trim old logs
         doc = self.document()
@@ -63,6 +62,12 @@ class AnsiTextEdit(QtWidgets.QTextEdit):
                 cursor.removeSelectedText()
             cursor.deleteChar()  # remove the trailing newline
             self.setTextCursor(cursor)
+
+        # Ensure scrollbar is at the bottom after all operations (append and trim)
+        final_cursor = self.textCursor()
+        final_cursor.movePosition(QtGui.QTextCursor.MoveOperation.End)
+        self.setTextCursor(final_cursor)
+        self.ensureCursorVisible()
 
     def _ansi_to_html(self, ansi_text):
         # Regex to find ANSI escape codes

@@ -4,7 +4,7 @@ import subprocess
 
 from PyQt6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFormLayout,
                              QHBoxLayout, QLineEdit, QMessageBox, QPushButton,
-                             QVBoxLayout)
+                             QSpinBox, QVBoxLayout)
 
 from utils.config_utils import load_config, save_config
 from utils.constants import LOGS_PATH, get_data_dir
@@ -60,6 +60,12 @@ class ConfigurationDialog(QDialog):
         self.style_dropdown.addItems([style.value for style in Style])
         form_layout.addRow("UI Style:", self.style_dropdown)
 
+        # Max Log Lines
+        self.max_log_lines_spinbox = QSpinBox()
+        self.max_log_lines_spinbox.setRange(50, 10000)
+        self.max_log_lines_spinbox.setSingleStep(50)
+        form_layout.addRow("Max Log Lines:", self.max_log_lines_spinbox)
+
         # Add form layout to main layout
         layout.addLayout(form_layout)
 
@@ -93,6 +99,7 @@ class ConfigurationDialog(QDialog):
     def populate_fields(self):
         self.config = load_config()
         self.style_dropdown.setCurrentText(self.config.style.capitalize())
+        self.max_log_lines_spinbox.setValue(self.config.max_log_lines)
 
     def equalize_button_widths(self):
         max_width = max(button.sizeHint().width() for button in self.buttons)
@@ -130,6 +137,10 @@ class ConfigurationDialog(QDialog):
         # Save the UI Style
         selected_style = self.style_dropdown.currentText()
         self.config.style = Style(selected_style)
+
+        # Save Max Log Lines
+        self.config.max_log_lines = self.max_log_lines_spinbox.value()
+
         # Save the config
         save_config(self.config)
 
