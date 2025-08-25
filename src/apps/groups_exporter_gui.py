@@ -1,123 +1,22 @@
 import json
 import os
-import subprocess
 import sys
-import tempfile
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtWidgets import QMessageBox
 
 from components.ansi_text_edit import AnsiTextEdit
 from components.bottom_banner import BottomBanner
+from components.matrix_editor import MatrixEditor
+from components.pad_filter_editor import PadFilterEditor
 from components.resizable_log_splitter import ResizableLogSplitter
 from dialogs.error_dialog import ErrorDialog
 from models.config import Config
+from processors.groups.build_groups_json import GroupsJsonBuilder
+from processors.groups.process_groups_json import GroupsProcessor
 from utils import config_utils
 from utils.bundle_utils import get_bundled_path
-
-
-class MatrixEditor(QtWidgets.QWidget):
-    def __init__(self, default_matrix, parent=None):
-        super().__init__(parent)
-
-        self.grid = []
-        main_layout = QtWidgets.QVBoxLayout()
-        for row in range(4):
-            row_layout = QtWidgets.QHBoxLayout()
-            row_widgets = []
-            for col in range(4):
-                pad_num = row * 4 + col + 1
-                container = QtWidgets.QWidget()
-                container_layout = QtWidgets.QHBoxLayout()
-                container_layout.setContentsMargins(0, 0, 0, 0)
-                label = QtWidgets.QLabel(f"Pad {pad_num:02d} → ")
-                spin = QtWidgets.QSpinBox()
-                spin.setRange(1, 16)
-                spin.setValue(default_matrix.get(pad_num, pad_num))
-                container_layout.addWidget(label)
-                container_layout.addWidget(spin)
-                container_layout.addWidget(QtWidgets.QLabel(" "))
-                container.setLayout(container_layout)
-                row_layout.addWidget(container)
-                row_widgets.append(spin)
-            self.grid.append(row_widgets)
-            main_layout.addLayout(row_layout)
-        self.setLayout(main_layout)
-
-    def get_matrix(self):
-        matrix = {}
-        for row in range(4):
-            for col in range(4):
-                pad_num = row * 4 + col + 1
-                matrix[pad_num] = self.grid[row][col].value()
-        return matrix
-
-
-class PadFilterEditor(QtWidgets.QWidget):
-    def __init__(self, default_filter, parent=None):
-        super().__init__(parent)
-        self.pad_select = QtWidgets.QComboBox()
-        self.pad_select.addItems([str(i) for i in range(1, 17)])
-        self.keyword_list = QtWidgets.QListWidget()
-        self.keyword_input = QtWidgets.QLineEdit()
-        self.add_btn = QtWidgets.QPushButton('Add')
-        self.remove_btn = QtWidgets.QPushButton('Remove Selected')
-        self.pad_filters = {i: default_filter.get(i, [])[:] for i in range(1, 17)}
-        self.pad_select.currentIndexChanged.connect(self.load_pad_keywords)
-        self.add_btn.clicked.connect(self.add_keyword)
-        self.remove_btn.clicked.connect(self.remove_selected)
-        self.load_pad_keywords()
-        layout = QtWidgets.QVBoxLayout()
-        layout.addWidget(QtWidgets.QLabel('Pad (1-16):'))
-        layout.addWidget(self.pad_select)
-        layout.addWidget(QtWidgets.QLabel('Keywords:'))
-        layout.addWidget(self.keyword_list)
-        hlayout = QtWidgets.QHBoxLayout()
-        hlayout.addWidget(self.keyword_input)
-        hlayout.addWidget(self.add_btn)
-        layout.addLayout(hlayout)
-        layout.addWidget(self.remove_btn)
-        self.setLayout(layout)
-
-    def load_pad_keywords(self):
-        pad = int(self.pad_select.currentText())
-        self.keyword_list.clear()
-        for kw in self.pad_filters.get(pad, []):
-            self.keyword_list.addItem(kw)
-
-    def add_keyword(self):
-        pad = int(self.pad_select.currentText())
-        kw = self.keyword_input.text().strip()
-        if kw:
-            self.pad_filters.setdefault(pad, []).append(kw)
-            self.keyword_input.clear()
-            self.load_pad_keywords()
-
-    def remove_selected(self):
-        pad = int(self.pad_select.currentText())
-        selected = self.keyword_list.selectedItems()
-        for item in selected:
-            self.pad_filters[pad].remove(item.text())
-        self.load_pad_keywords()
-
-    def get_pad_filter(self):
-        return {pad: kws for pad, kws in self.pad_filters.items() if kws}
-
-
-class WorkerThread(QtCore.QThread):
-    output_signal = QtCore.pyqtSignal(str)
-    finished_signal = QtCore.pyqtSignal(int)
-
-    def __init__(self, cmd):
-        super().__init__()
-        self.cmd = cmd
-
-    def run(self):
-        proc = subprocess.Popen(self.cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        for line in proc.stdout:
-            self.output_signal.emit(line.rstrip())
-        proc.wait()
-        self.finished_signal.emit(proc.returncode)
+from utils.worker_utils import WorkerThread
 
 
 class GroupsExporterGUI(QtWidgets.QWidget):
@@ -378,9 +277,12 @@ class GroupsExporterGUI(QtWidgets.QWidget):
 
     def cancel_worker(self):
         if self.worker and self.worker.isRunning():
-            self.worker.terminate()
+            self.worker.request_cancel()  # Request cancellation
             self.cancelled = True
+            # Manually call finished handler to update UI state
             self.on_subprocess_finished(-1)
+            # Clear the worker reference
+            self.worker = None
         else:
             self.run_build_btn.setEnabled(True)
             self.run_process_btn.setEnabled(True)
@@ -503,12 +405,24 @@ class GroupsExporterGUI(QtWidgets.QWidget):
     def run_build_json(self):
         input_folder = self.input_folder.text().strip()
         output_folder = self.output_folder.text().strip()
-        generate_txt = 'true' if self.generate_txt.isChecked() else 'false'
-        script_path = os.path.join('src', 'processors', 'groups', 'build_groups_json.py')
-        cmd = [sys.executable, script_path, input_folder, output_folder, generate_txt]
-        self.log_output.append(f"Running: {' '.join(cmd)}")
+        generate_txt = self.generate_txt.isChecked()
+
+        if not input_folder:
+            QMessageBox.warning(self, "Input Error", "Please select an input folder for .mxgrp files.")
+            return
+        if not output_folder:
+            QMessageBox.warning(self, "Input Error", "Please select an output folder for the JSON file.")
+            return
+
+        builder = GroupsJsonBuilder(
+            input_folder=input_folder,
+            output_folder=output_folder,
+            generate_txt=generate_txt
+        )
+        self.log_output.append(f"Starting JSON build process for input folder: {input_folder}")
         self.show_loading('Processing groups...')
-        self.run_subprocess(cmd)
+        self.run_worker(builder.run, {}, logger_name="GroupsBuilder")
+
         json_path = os.path.join(output_folder, 'all_groups.json')
         self.json_path.setText(json_path)
         self.proc_output_folder.setText(os.path.abspath('./out/groups'))
@@ -517,54 +431,68 @@ class GroupsExporterGUI(QtWidgets.QWidget):
     def run_process_py(self):
         json_path = self.json_path.text().strip()
         output_folder = self.proc_output_folder.text().strip()
-        matrix = self.matrix_editor.get_matrix()
-        pad_filter = self.pad_filter_editor.get_pad_filter()
-        with tempfile.NamedTemporaryFile('w', delete=False, suffix='.json') as matrix_file:
-            json.dump(matrix, matrix_file)
-            matrix_file_path = matrix_file.name
-        with tempfile.NamedTemporaryFile('w', delete=False, suffix='.json') as pad_filter_file:
-            json.dump(pad_filter, pad_filter_file)
-            pad_filter_file_path = pad_filter_file.name
-        script_path = os.path.join('src', 'processors', 'groups', 'process_groups_json.py')
-        cmd = [sys.executable, script_path, json_path, output_folder]
-        if self.config.groups_exporter.trim_silence:
-            cmd.append('--trim_silence')
-        if self.config.groups_exporter.normalize:
-            cmd.append('--normalize')
-        if self.config.groups_exporter.enable_matrix:
-            cmd.extend(['--matrix_json', matrix_file_path])
-        if self.config.groups_exporter.filter_pads:
-            cmd.append('--filter_pads')
-            cmd.extend(['--filter_pads_json', pad_filter_file_path])
-        if self.config.groups_exporter.fill_blanks:
-            cmd.append('--fill_blanks')
-        if self.config.groups_exporter.fill_blanks_path:
-            cmd.extend(['--fill_blanks_path', self.config.groups_exporter.fill_blanks_path])
-        else:
-            cmd.extend(['--fill_blanks_path', get_bundled_path("./assets/.wav")])
-        if self.config.groups_exporter.sample_rate:
-            cmd.extend(['--sample_rate', self.config.groups_exporter.sample_rate])
-        if self.config.groups_exporter.bit_depth:
-            cmd.extend(['--bit_depth', self.config.groups_exporter.bit_depth])
-        if self.config.groups_exporter.include_preview:
-            cmd.append('--include_preview')
-        self.log_output.append(f"Running: {' '.join(cmd)}")
-        self.show_loading('Exporting groups...')
-        self.run_subprocess(cmd)
 
-    def run_subprocess(self, cmd):
+        if not json_path or not os.path.exists(json_path):
+            QMessageBox.warning(self, "Input Error", "Please select a valid JSON file.")
+            return
+        if not output_folder:
+            QMessageBox.warning(self, "Input Error", "Please select an output folder for the processed groups.")
+            return
+
+        sample_rate_val = None
+        if self.sample_rate.text().strip():
+            try:
+                sample_rate_val = int(self.sample_rate.text().strip())
+            except ValueError:
+                QMessageBox.warning(self, "Input Error", "Sample rate must be an integer.")
+                return
+
+        bit_depth_val = None
+        if self.bit_depth.text().strip():
+            try:
+                bit_depth_val = int(self.bit_depth.text().strip())
+            except ValueError:
+                QMessageBox.warning(self, "Input Error", "Bit depth must be an integer.")
+                return
+
+        fill_blanks_path_val = None
+        if self.config.groups_exporter.fill_blanks:
+            if self.config.groups_exporter.fill_blanks_path:
+                fill_blanks_path_val = self.config.groups_exporter.fill_blanks_path
+            else:
+                fill_blanks_path_val = get_bundled_path("./assets/.wav")
+
+        processor = GroupsProcessor(
+            json_path=json_path,
+            output_folder=output_folder,
+            trim_silence_flag=self.config.groups_exporter.trim_silence,
+            normalize_flag=self.config.groups_exporter.normalize,
+            sample_rate=sample_rate_val,
+            bit_depth=bit_depth_val,
+            matrix=self.matrix_editor.get_matrix() if self.config.groups_exporter.enable_matrix else None,
+            filter_pads=self.config.groups_exporter.filter_pads,
+            pad_filter=self.pad_filter_editor.get_pad_filter() if self.config.groups_exporter.filter_pads else None,
+            fill_blanks=fill_blanks_path_val,
+            enable_matrix=self.config.groups_exporter.enable_matrix,
+            include_preview=self.config.groups_exporter.include_preview
+        )
+        self.log_output.append(f"Starting group export process for JSON: {json_path}")
+        self.show_loading('Exporting groups...')
+        self.run_worker(processor.run, {}, logger_name="GroupsProcessor")
+
+    def run_worker(self, target_callable, kwargs, logger_name=None):
         self.run_build_btn.setEnabled(False)
         self.run_process_btn.setEnabled(False)
-        self.has_output = False  # Reset flag before new process
-        self.worker = WorkerThread(cmd)
-        self.worker.output_signal.connect(self.on_worker_output)  # Connect to new slot
+        self.has_output = False
+        self.worker = WorkerThread(target_callable, kwargs, logger_name)
+        self.worker.output_signal.connect(self.on_worker_output)
         self.worker.finished_signal.connect(self.on_subprocess_finished)
         self.worker.start()
 
     def on_subprocess_finished(self, code):
         if self.cancelled:
             self.log_output.append('Operation cancelled by user.\n')
-        elif code == 0:
+        elif code == 0 and self.has_output:  # Only switch if successful AND there was output
             self.log_output.append('Done\n')
             # Check if the process was 'build_groups_json.py' and if there were any groups processed
             if self.tabs.currentIndex() == 0 and self.last_built_json_path and os.path.exists(self.last_built_json_path):
@@ -591,9 +519,11 @@ class GroupsExporterGUI(QtWidgets.QWidget):
                     self.log_output.append(f'An unexpected error occurred: {e}. Switching tabs anyway.\n')
                     self.tabs.setCurrentIndex(1)
             elif self.has_output:
-                # Only switch if successful AND there was output (for other processes)
+                # For other processes, if successful and has output, switch tabs
                 if self.tabs.currentIndex() == 0:
                     self.tabs.setCurrentIndex(1)
+        elif code == 0 and not self.has_output:  # If successful but no output, just say Done
+            self.log_output.append('Done\n')
         else:
             error_message = f'Process finished with exit code {code}\n'
             self.log_output.append(error_message)

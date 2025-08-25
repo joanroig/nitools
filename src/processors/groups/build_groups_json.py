@@ -1,9 +1,11 @@
+import argparse
 import json
 import os
 import re
 import shutil
 import sys
 import zlib
+from pathlib import Path
 
 from utils.constants import LOGS_PATH
 from utils.logger import Logger
@@ -313,70 +315,92 @@ def process_mxgrp_file(input_file: str, output_folder: str, generate_txt: bool =
     return group_info
 
 
-def main(folder_in: str, folder_out: str, combined_json_name="all_groups.json", generate_txt=True):
-    if not os.path.isdir(folder_out):
-        os.makedirs(folder_out)
+class GroupsJsonBuilder:
+    def __init__(self, input_folder: str, output_folder: str, combined_json_name="all_groups.json", generate_txt=True):
+        self.input_folder = input_folder
+        self.output_folder = output_folder
+        self.combined_json_name = combined_json_name
+        self.generate_txt = generate_txt
 
-    # Clear the parsed folder at start
-    clear_parsed_folder(folder_out)
-
-    mxgrp_files = find_mxgrp_files(folder_in)
-    logger.info(f"Found {len(mxgrp_files)} .mxgrp files to process.")
-
-    all_groups = []
-
-    for mxgrp_path in mxgrp_files:
+    def run(self, worker_instance=None):  # Accept worker_instance
         try:
-            group_data = process_mxgrp_file(mxgrp_path, folder_out, generate_txt=generate_txt)
+            if not os.path.isdir(self.output_folder):
+                os.makedirs(self.output_folder)
 
-            if not group_data:  # Skipped due to exclusion
-                continue
+            clear_parsed_folder(self.output_folder)
 
-            # Skip groups with no samples
-            if not group_data['samples']:
-                logger.warning(f"Skipped group with no samples: {group_data['group']}")
-                continue
+            mxgrp_files = find_mxgrp_files(self.input_folder)
+            logger.info(f"Found {len(mxgrp_files)} .mxgrp files to process.")
 
-            all_groups.append(group_data)
+            all_groups = []
+
+            for mxgrp_path in mxgrp_files:
+                if worker_instance and worker_instance.cancel_requested():  # Check for cancellation
+                    logger.info("Groups JSON build cancelled by user.")
+                    return 1  # Return non-zero for cancellation
+
+                try:
+                    group_data = process_mxgrp_file(mxgrp_path, self.output_folder, generate_txt=self.generate_txt)
+
+                    if not group_data:
+                        continue
+
+                    if not group_data['samples']:
+                        logger.warning(f"Skipped group with no samples: {group_data['group']}")
+                        continue
+
+                    all_groups.append(group_data)
+                except Exception as e:
+                    logger.error(f"Error processing '{mxgrp_path}': {e}")
+
+            combined_json_path = os.path.join(self.output_folder, self.combined_json_name)
+            with open(combined_json_path, "w", encoding="utf-8") as f:
+                json.dump(all_groups, f, indent=2, ensure_ascii=False)
+
+            logger.info(f"All groups saved to {combined_json_path}")
+            return 0
         except Exception as e:
-            logger.error(f"Error processing '{mxgrp_path}': {e}")
+            logger.error(f"Error building groups JSON: {e}")
+            return 1
 
-    combined_json_path = os.path.join(folder_out, combined_json_name)
-    with open(combined_json_path, "w", encoding="utf-8") as f:
-        json.dump(all_groups, f, indent=2, ensure_ascii=False)
-
-    logger.info(f"All groups saved to {combined_json_path}")
-
-
-class Tee:
-    def __init__(self, *files):
-        self.files = files
-
-    def write(self, obj):
-        for f in self.files:
-            f.write(obj)
-            f.flush()
-
-    def flush(self):
-        for f in self.files:
-            f.flush()
+def main(input_folder: str, output_folder: str, combined_json_name: str = "all_groups.json", generate_txt: bool = True):
+    builder = GroupsJsonBuilder(
+        input_folder=input_folder,
+        output_folder=output_folder,
+        combined_json_name=combined_json_name,
+        generate_txt=generate_txt
+    )
+    sys.exit(builder.run())
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Builds a JSON file of Native Instruments groups.")
+    parser.add_argument("input_folder", help="Path to the input folder containing .mxgrp files.")
+    parser.add_argument("output_folder", help="Path to the output folder for the JSON and parsed text files.")
+    parser.add_argument("--combined_json_name", default="all_groups.json",
+                        help="Name of the combined JSON file (default: all_groups.json).")
+    parser.add_argument("--generate_txt", type=lambda x: x.lower() == 'true', default=True,
+                        help="Generate individual parsed text files for each group (default: true).")
+    args = parser.parse_args()
 
-    if len(sys.argv) not in (3, 4):
-        logger.error(f"Usage: python {sys.argv[0]} <input_folder> <output_folder> [generate_txt]")
-        logger.error("generate_txt: optional, 'true' or 'false' (default: true)")
+    # Parameter Validation
+    if not os.path.isdir(args.input_folder):
+        logger.error(f"Error: Input folder '{args.input_folder}' does not exist or is not a directory.")
         sys.exit(1)
 
-    log_path = os.path.join(LOGS_PATH, "_build_groups_log.txt")
-    sys.stdout = Tee(sys.stdout, open(log_path, "w", encoding="utf-8"))
-    sys.stderr = Tee(sys.stderr, open(log_path, "a", encoding="utf-8"))  # Redirect stderr to the same log file, append mode
+    output_dir = Path(args.output_folder)
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        logger.error(f"Error: Could not create output folder '{args.output_folder}': {e}")
+        sys.exit(1)
 
-    input_folder = sys.argv[1]
-    output_folder = sys.argv[2]
-    generate_txt = True
-    if len(sys.argv) == 4:
-        generate_txt = sys.argv[3].lower() == "true"
-
-    main(input_folder, output_folder, generate_txt=generate_txt)
+    try:
+        main(
+            input_folder=args.input_folder,
+            output_folder=args.output_folder,
+            combined_json_name=args.combined_json_name,
+            generate_txt=args.generate_txt
+        )
+    except SystemExit as e:
+        sys.exit(e.code)

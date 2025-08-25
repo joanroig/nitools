@@ -1,3 +1,4 @@
+import argparse  # Added argparse
 import json
 import os
 import sys
@@ -11,6 +12,7 @@ logger = Logger.get_logger("PreviewsBuilder")
 
 # Registry path to Native Instruments registry
 REG_PATH = r"SOFTWARE\Native Instruments"
+
 
 def get_registry_keys(base_key, path):
     """Return all subkeys in a given registry path."""
@@ -29,6 +31,7 @@ def get_registry_keys(base_key, path):
         logger.warning(f"Registry path {path} not found.")
     return keys
 
+
 def get_content_dir(inst_name):
     """Return the ContentDir value for a given instrument from the registry."""
     try:
@@ -38,6 +41,7 @@ def get_content_dir(inst_name):
     except FileNotFoundError:
         logger.warning(f"ContentDir for {inst_name} not found.")
         return None
+
 
 def collect_samples(inst_name):
     """Collect all .ogg files and their corresponding output paths."""
@@ -65,47 +69,57 @@ def collect_samples(inst_name):
                 })
     return samples
 
+
+class PreviewsJsonBuilder:
+    def __init__(self, output_folder: str):
+        self.output_folder = output_folder
+
+    def run(self, worker_instance=None):
+        try:
+            output_path = Path(self.output_folder)
+            output_path.mkdir(exist_ok=True)
+
+            all_samples = []
+            instrument_keys = get_registry_keys(winreg.HKEY_LOCAL_MACHINE, REG_PATH)
+            for inst in instrument_keys:
+                if worker_instance and worker_instance.cancel_requested():
+                    logger.info("Previews JSON build cancelled by user.")
+                    return 1  # Return non-zero for cancellation
+
+                logger.info(f"Collecting samples for: {inst}")
+                all_samples.extend(collect_samples(inst))
+
+            # Save to JSON
+            output_json_path = output_path / "all_previews.json"
+            with open(output_json_path, "w", encoding="utf-8") as f:
+                json.dump(all_samples, f, indent=4)
+
+            logger.info(f"Exported {len(all_samples)} samples to {output_json_path}")
+            return 0  # Success
+        except Exception as e:
+            logger.error(f"Error building previews JSON: {e}")
+            return 1  # Error
+
+
 def main(output_folder: str):
-    output_path = Path(output_folder)
-    output_path.mkdir(exist_ok=True)
-
-    all_samples = []
-    instrument_keys = get_registry_keys(winreg.HKEY_LOCAL_MACHINE, REG_PATH)
-    for inst in instrument_keys:
-        logger.info(f"Collecting samples for: {inst}")
-        all_samples.extend(collect_samples(inst))
-
-    # Save to JSON
-    output_json_path = output_path / "previews.json"
-    with open(output_json_path, "w", encoding="utf-8") as f:
-        json.dump(all_samples, f, indent=4)
-
-    logger.info(f"Exported {len(all_samples)} samples to {output_json_path}")
-
-
-class Tee:
-    def __init__(self, *files):
-        self.files = files
-
-    def write(self, obj):
-        for f in self.files:
-            f.write(obj)
-            f.flush()
-
-    def flush(self):
-        for f in self.files:
-            f.flush()
+    builder = PreviewsJsonBuilder(output_folder=output_folder)
+    sys.exit(builder.run())
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        logger.error(f"Usage: python {sys.argv[0]} <output_folder>")
+    parser = argparse.ArgumentParser(description="Builds a JSON file of Native Instruments previews.")
+    parser.add_argument("output_folder", help="Path to the output folder where the JSON will be saved.")
+    args = parser.parse_args()
+
+    # Parameter Validation
+    output_dir = Path(args.output_folder)
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        logger.error(f"Error: Could not create output folder '{args.output_folder}': {e}")
         sys.exit(1)
 
-    output_folder = sys.argv[1]
-
-    log_path = os.path.join(LOGS_PATH, "_build_previews_log.txt")
-    sys.stdout = Tee(sys.stdout, open(log_path, "w", encoding="utf-8"))
-    sys.stderr = Tee(sys.stderr, open(log_path, "a", encoding="utf-8"))  # Redirect stderr to the same log file, append mode
-
-    main(output_folder)
+    try:
+        main(output_folder=args.output_folder)
+    except SystemExit as e:
+        sys.exit(e.code)

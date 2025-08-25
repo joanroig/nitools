@@ -53,7 +53,7 @@
       "args": [
         "D:/Libraries/Native Instruments/",
         "./out/",
-        "false" // disables txt generation
+        "--generate_txt=false"
       ],
       "justMyCode": true,
       "env": {
@@ -87,11 +87,7 @@
       "program": "src/processors/previews/build_previews_json.py",
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
-      "args": [
-        "D:/Libraries/Native Instruments/",
-        "./out/",
-        "false" // disables txt generation
-      ],
+      "args": ["./out/"],
       "justMyCode": true,
       "env": {
         "PYTHONPATH": "${workspaceFolder}/src"
@@ -108,9 +104,7 @@
         "./out/all_previews.json",
         "./out/previews/",
         "--trim_silence",
-        "--normalize",
-        "--filter_pads",
-        "--fill_blanks"
+        "--normalize"
       ],
       "justMyCode": true,
       "env": {

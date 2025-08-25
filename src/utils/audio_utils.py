@@ -1,4 +1,3 @@
-import numpy as np
 from pydub import AudioSegment, silence
 
 def trim_and_normalize_wav(input_path, output_path, trim_silence_flag, normalize_flag, sample_rate=None, bit_depth=None):

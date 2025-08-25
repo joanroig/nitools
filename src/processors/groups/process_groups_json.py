@@ -1,9 +1,10 @@
+import argparse
 import json
 import os
 import re
 import shutil
 import sys
-import argparse
+from pathlib import Path
 
 from utils.audio_utils import trim_and_normalize_wav
 from utils.constants import LOGS_PATH
@@ -45,148 +46,200 @@ def pick_multisample_path(paths):
     # Fallback to the first path
     return paths[0]
 
-def process_group(
-    json_path,
-    output_folder,
-    trim_silence_flag=False,
-    matrix=None,
-    filter_pads=True,
-    pad_filter=None,
-    fill_blanks=None,
-    normalize_flag=False,
-    sample_rate=None,
-    bit_depth=None,
-    enable_matrix=True,
-    include_preview=False
-):
-    if matrix is None:
-        matrix = DEFAULT_MATRIX
-    if pad_filter is None:
-        pad_filter = DEFAULT_PAD_FILTER
+class GroupsProcessor:
+    def __init__(
+        self,
+        json_path,
+        output_folder,
+        trim_silence_flag=False,
+        matrix=None,
+        filter_pads=True,
+        pad_filter=None,
+        fill_blanks=None,
+        normalize_flag=False,
+        sample_rate=None,
+        bit_depth=None,
+        enable_matrix=True,
+        include_preview=False
+    ):
+        self.json_path = json_path
+        self.output_folder = output_folder
+        self.trim_silence_flag = trim_silence_flag
+        self.matrix = matrix if matrix is not None else DEFAULT_MATRIX
+        self.filter_pads = filter_pads
+        self.pad_filter = pad_filter if pad_filter is not None else DEFAULT_PAD_FILTER
+        self.fill_blanks = fill_blanks
+        self.normalize_flag = normalize_flag
+        self.sample_rate = sample_rate
+        self.bit_depth = bit_depth
+        self.enable_matrix = enable_matrix
+        self.include_preview = include_preview
 
-    # Load JSON groups
-    with open(json_path, 'r', encoding='utf-8') as f:
-        groups = json.load(f)
+    def run(self, worker_instance=None):  # Accept worker_instance
+        try:
+            with open(self.json_path, 'r', encoding='utf-8') as f:
+                groups = json.load(f)
 
-    def pad_contains(sample, keywords):
-        if not sample:
-            return False
-        name = sample.get('name', '')
-        name = name.lower()
-        return any(kw in name for kw in keywords)
+            def pad_contains(sample, keywords):
+                if not sample:
+                    return False
+                name = sample.get('name', '')
+                name = name.lower()
+                return any(kw in name for kw in keywords)
 
-    filtered_groups = []
-    if filter_pads and pad_filter:
-        for group in groups:
-            samples = group.get('samples', [])
-            match = True
-            for pad_num, keywords in pad_filter.items():
-                pad_sample = next((s for s in samples if s.get('pad') == pad_num), None)
-                if not pad_contains(pad_sample, keywords):
-                    match = False
-                    break
-            if match:
-                filtered_groups.append(group)
-        groups = filtered_groups
+            filtered_groups = []
+            if self.filter_pads and self.pad_filter:
+                for group in groups:
+                    if worker_instance and worker_instance.cancel_requested():  # Check for cancellation
+                        logger.info("Groups export cancelled by user.")
+                        return 1  # Return non-zero for cancellation
+                    samples = group.get('samples', [])
+                    match = True
+                    for pad_num, keywords in self.pad_filter.items():
+                        pad_sample = next((s for s in samples if s.get('pad') == pad_num), None)
+                        if not pad_contains(pad_sample, keywords):
+                            match = False
+                            break
+                    if match:
+                        filtered_groups.append(group)
+                groups = filtered_groups
 
-    for group in groups:
-        group_name = group['group']
-        expansion_name = group['expansion']
-        base_path = group['path']
-        samples = group['samples']
+            for group in groups:
+                if worker_instance and worker_instance.cancel_requested():  # Check for cancellation
+                    logger.info("Groups export cancelled by user.")
+                    return 1  # Return non-zero for cancellation
 
-        # Build output group folder path
-        group_folder = os.path.join(output_folder, expansion_name, group_name)
-        os.makedirs(group_folder, exist_ok=True)
+                group_name = group['group']
+                expansion_name = group['expansion']
+                base_path = group['path']
+                samples = group['samples']
 
-        # For reordering, create a mapping pad -> sample data
-        pad_to_sample = {}
-        for s in samples:
-            pad_to_sample[s['pad']] = s
+                group_folder = os.path.join(self.output_folder, expansion_name, group_name)
+                os.makedirs(group_folder, exist_ok=True)
 
-        # Go through original pads 1..16 (max 16 samples)
-        for original_pad in range(1, 17):
-            sample = pad_to_sample.get(original_pad)
-            target_pad = matrix.get(original_pad, original_pad) if enable_matrix else original_pad
-            suffix = f"{target_pad:02d}_"
+                pad_to_sample = {}
+                for s in samples:
+                    pad_to_sample[s['pad']] = s
 
-            if sample:
-                # Determine source wav path(s)
-                if sample['type'] == 'multisample':
-                    # pick one path according to rule
-                    source_rel_path = pick_multisample_path(sample['paths'])
-                else:
-                    source_rel_path = sample['paths']
+                for original_pad in range(1, 17):
+                    if worker_instance and worker_instance.cancel_requested():  # Check for cancellation
+                        logger.info("Groups export cancelled by user.")
+                        return 1  # Return non-zero for cancellation
 
-                source_path = os.path.join(base_path, source_rel_path)
-                if not os.path.isfile(source_path):
-                    logger.warning(f"Source file not found {source_path}")
-                    continue
+                    sample = pad_to_sample.get(original_pad)
+                    target_pad = self.matrix.get(original_pad, original_pad) if self.enable_matrix else original_pad
+                    suffix = f"{target_pad:02d}_"
 
-                filename = os.path.basename(source_path)
-                target_filename = suffix + filename
-                target_path = os.path.join(group_folder, target_filename)
-
-                try:
-                    trim_and_normalize_wav(source_path, target_path, trim_silence_flag, normalize_flag, sample_rate, bit_depth)
-                except Exception as e:
-                    logger.error(f"Error processing {source_path}: {e}")
-                    shutil.copy2(source_path, target_path)
-
-                logger.info(f"Copied pad {original_pad:02d} -> target pad {target_pad:02d} file: {target_path}")
-            else:
-                # Fill blank pad
-                if fill_blanks:
-                    import random
-                    if os.path.isdir(fill_blanks):
-                        # Pick random wav file from folder
-                        wavs = [f for f in os.listdir(fill_blanks) if f.lower().endswith('.wav')]
-                        if wavs:
-                            chosen = random.choice(wavs)
-                            source_path = os.path.join(fill_blanks, chosen)
+                    if sample:
+                        if sample['type'] == 'multisample':
+                            source_rel_path = pick_multisample_path(sample['paths'])
                         else:
-                            source_path = None
-                    else:
-                        source_path = fill_blanks
-                    if source_path and os.path.isfile(source_path):
-                        target_filename = suffix + os.path.basename(source_path)
+                            source_rel_path = sample['paths']
+
+                        source_path = os.path.join(base_path, source_rel_path)
+                        if not os.path.isfile(source_path):
+                            logger.warning(f"Source file not found {source_path}")
+                            continue
+
+                        filename = os.path.basename(source_path)
+                        target_filename = suffix + filename
                         target_path = os.path.join(group_folder, target_filename)
+
                         try:
-                            trim_and_normalize_wav(source_path, target_path, trim_silence_flag, normalize_flag, sample_rate, bit_depth)
+                            trim_and_normalize_wav(source_path, target_path, self.trim_silence_flag, self.normalize_flag, self.sample_rate, self.bit_depth)
                         except Exception as e:
                             logger.error(f"Error processing {source_path}: {e}")
                             shutil.copy2(source_path, target_path)
-                        logger.info(f"Filled blank pad {original_pad:02d} -> target pad {target_pad:02d} with: {target_path}")
+
+                        logger.info(f"Copied pad {original_pad:02d} -> target pad {target_pad:02d} file: {target_path}")
                     else:
-                        logger.warning(f"No valid file to fill blank pad {original_pad:02d}")
-        # Include preview sample if enabled
-        if include_preview:
-            preview_dir = os.path.join(base_path, "Groups", "groups", ".previews")
-            preview_file = os.path.join(preview_dir, group_name + ".mxgrp.ogg")
-            if os.path.isfile(preview_file):
-                preview_wav = os.path.join(group_folder, "Preview - " + group_name + ".wav")
-                try:
-                    trim_and_normalize_wav(preview_file, preview_wav, trim_silence_flag, normalize_flag, sample_rate, bit_depth)
-                    logger.info(f"Included preview sample: {preview_wav}")
-                except Exception as e:
-                    logger.error(f"Error processing preview {preview_file}: {e}")
+                        if self.fill_blanks:
+                            import random
+                            if os.path.isdir(self.fill_blanks):
+                                wavs = [f for f in os.listdir(self.fill_blanks) if f.lower().endswith('.wav')]
+                                if wavs:
+                                    chosen = random.choice(wavs)
+                                    source_path = os.path.join(self.fill_blanks, chosen)
+                                else:
+                                    source_path = None
+                            else:
+                                source_path = self.fill_blanks
+                            if source_path and os.path.isfile(source_path):
+                                target_filename = suffix + os.path.basename(source_path)
+                                target_path = os.path.join(group_folder, target_filename)
+                                try:
+                                    trim_and_normalize_wav(source_path, target_path, self.trim_silence_flag, self.normalize_flag, self.sample_rate, self.bit_depth)
+                                except Exception as e:
+                                    logger.error(f"Error processing {source_path}: {e}")
+                                    shutil.copy2(source_path, target_path)
+                                logger.info(f"Filled blank pad {original_pad:02d} -> target pad {target_pad:02d} with: {target_path}")
+                            else:
+                                logger.warning(f"No valid file to fill blank pad {original_pad:02d}")
+                if self.include_preview:
+                    preview_dir = os.path.join(base_path, "Groups", "groups", ".previews")
+                    preview_file = os.path.join(preview_dir, group_name + ".mxgrp.ogg")
+                    if os.path.isfile(preview_file):
+                        preview_wav = os.path.join(group_folder, "Preview - " + group_name + ".wav")
+                        try:
+                            trim_and_normalize_wav(preview_file, preview_wav, self.trim_silence_flag, self.normalize_flag, self.sample_rate, self.bit_depth)
+                            logger.info(f"Included preview sample: {preview_wav}")
+                        except Exception as e:
+                            logger.error(f"Error processing preview {preview_file}: {e}")
+            return 0
+        except Exception as e:
+            logger.error(f"Error processing groups: {e}")
+            return 1
 
 
-class Tee:
-    def __init__(self, *files):
-        self.files = files
+def main(
+    json_path: str,
+    output_folder: str,
+    trim_silence: bool,
+    normalize: bool,
+    matrix_json: str,
+    filter_pads: bool,
+    filter_pads_json: str,
+    fill_blanks: bool,
+    fill_blanks_path: str,
+    sample_rate: int,
+    bit_depth: int,
+    enable_matrix: bool,
+    include_preview: bool
+):
+    matrix = None
+    if matrix_json:
+        with open(matrix_json, 'r', encoding='utf-8') as f:
+            matrix = json.load(f)
+            matrix = {int(k): v for k, v in matrix.items()}
 
-    def write(self, obj):
-        for f in self.files:
-            f.write(obj)
-            f.flush()
+    pad_filter = None
+    if filter_pads_json:
+        with open(filter_pads_json, 'r', encoding='utf-8') as f:
+            pad_filter = json.load(f)
+            pad_filter = {int(k): v for k, v in pad_filter.items()}
 
-    def flush(self):
-        for f in self.files:
-            f.flush()
+    actual_fill_blanks_path = None
+    if fill_blanks and fill_blanks_path:
+        actual_fill_blanks_path = fill_blanks_path
+
+    processor = GroupsProcessor(
+        json_path=json_path,
+        output_folder=output_folder,
+        trim_silence_flag=trim_silence,
+        matrix=matrix,
+        filter_pads=filter_pads,
+        pad_filter=pad_filter,
+        fill_blanks=actual_fill_blanks_path,
+        normalize_flag=normalize,
+        sample_rate=sample_rate,
+        bit_depth=bit_depth,
+        enable_matrix=enable_matrix,
+        include_preview=include_preview
+    )
+    sys.exit(processor.run())
 
 
-def main():
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="group processor")
     parser.add_argument("json_path", help="Path to input JSON file")
     parser.add_argument("output_folder", help="Path to output base folder")
@@ -204,44 +257,58 @@ def main():
 
     args = parser.parse_args()
 
-    matrix = None
-    if args.matrix_json:
-        with open(args.matrix_json, 'r', encoding='utf-8') as f:
-            matrix = json.load(f)
-            # Expecting a dictionary of str keys (pad numbers) to int values
-            # Convert keys to int
-            matrix = {int(k): v for k, v in matrix.items()}
+    # Parameter Validation
+    if not Path(args.json_path).is_file():
+        logger.error(f"Error: JSON path '{args.json_path}' does not exist or is not a file.")
+        sys.exit(1)
 
-    pad_filter = None
-    if args.filter_pads_json:
-        with open(args.filter_pads_json, 'r', encoding='utf-8') as f:
-            pad_filter = json.load(f)
-            # Convert keys to int
-            pad_filter = {int(k): v for k, v in pad_filter.items()}
+    output_dir = Path(args.output_folder)
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        logger.error(f"Error: Could not create output folder '{args.output_folder}': {e}")
+        sys.exit(1)
 
-    fill_blanks = None
+    if args.matrix_json and not Path(args.matrix_json).is_file():
+        logger.error(f"Error: Matrix JSON path '{args.matrix_json}' does not exist or is not a file.")
+        sys.exit(1)
+
+    if args.filter_pads_json and not Path(args.filter_pads_json).is_file():
+        logger.error(f"Error: Pad filter JSON path '{args.filter_pads_json}' does not exist or is not a file.")
+        sys.exit(1)
+
     if args.fill_blanks and args.fill_blanks_path:
-        fill_blanks = args.fill_blanks_path
-    process_group(
-        json_path=args.json_path,
-        output_folder=args.output_folder,
-        trim_silence_flag=args.trim_silence,
-        matrix=matrix,
-        filter_pads=args.filter_pads,
-        pad_filter=pad_filter,
-        fill_blanks=fill_blanks,
-        normalize_flag=args.normalize,
-        sample_rate=args.sample_rate,
-        bit_depth=args.bit_depth,
-        enable_matrix=args.enable_matrix,
-        include_preview=args.include_preview
-    )
+        fill_path = Path(args.fill_blanks_path)
+        if not fill_path.exists():
+            logger.error(f"Error: Fill blanks path '{args.fill_blanks_path}' does not exist.")
+            sys.exit(1)
+        if not (fill_path.is_file() or fill_path.is_dir()):
+            logger.error(f"Error: Fill blanks path '{args.fill_blanks_path}' is not a file or a directory.")
+            sys.exit(1)
 
+    if args.sample_rate is not None and args.sample_rate <= 0:
+        logger.error(f"Error: Sample rate must be a positive integer, got {args.sample_rate}.")
+        sys.exit(1)
 
-if __name__ == "__main__":
+    if args.bit_depth is not None and args.bit_depth <= 0:
+        logger.error(f"Error: Bit depth must be a positive integer, got {args.bit_depth}.")
+        sys.exit(1)
 
-    log_path = os.path.join(LOGS_PATH, "_process_groups_log.txt")
-    sys.stdout = Tee(sys.stdout, open(log_path, "w", encoding="utf-8"))
-    sys.stderr = Tee(sys.stderr, open(log_path, "a", encoding="utf-8"))  # Redirect stderr to the same log file, append mode
-
-    main()
+    try:
+        main(
+            json_path=args.json_path,
+            output_folder=args.output_folder,
+            trim_silence=args.trim_silence,
+            normalize=args.normalize,
+            matrix_json=args.matrix_json,
+            filter_pads=args.filter_pads,
+            filter_pads_json=args.filter_pads_json,
+            fill_blanks=args.fill_blanks,
+            fill_blanks_path=args.fill_blanks_path,
+            sample_rate=args.sample_rate,
+            bit_depth=args.bit_depth,
+            enable_matrix=args.enable_matrix,
+            include_preview=args.include_preview
+        )
+    except SystemExit as e:
+        sys.exit(e.code)

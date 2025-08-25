@@ -42,14 +42,27 @@ class AnsiTextEdit(QtWidgets.QTextEdit):
         "107": "white",  # Bright white
     }
 
-    def __init__(self, parent=None):
+    def __init__(self, max_log_lines: int = 200, parent=None):
         super().__init__(parent)
         self.setReadOnly(True)
         self.setFont(QtGui.QFont("Consolas", 10))  # Monospaced font for better log readability
+        self.max_log_lines = max_log_lines
 
     def append(self, text):
         html_text = self._ansi_to_html(text)
         super().append(html_text)
+        self.verticalScrollBar().setValue(self.verticalScrollBar().maximum())
+
+        # Trim old logs
+        doc = self.document()
+        if doc.blockCount() > self.max_log_lines:
+            cursor = QtGui.QTextCursor(doc)
+            cursor.movePosition(QtGui.QTextCursor.MoveOperation.Start)
+            for _ in range(doc.blockCount() - self.max_log_lines):
+                cursor.select(QtGui.QTextCursor.SelectionType.BlockUnderCursor)
+                cursor.removeSelectedText()
+            cursor.deleteChar()  # remove the trailing newline
+            self.setTextCursor(cursor)
 
     def _ansi_to_html(self, ansi_text):
         # Regex to find ANSI escape codes

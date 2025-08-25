@@ -1,5 +1,5 @@
+import logging
 import os
-import subprocess
 import sys
 
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -10,24 +10,11 @@ from components.bottom_banner import BottomBanner
 from components.resizable_log_splitter import ResizableLogSplitter
 from dialogs.error_dialog import ErrorDialog
 from models.config import Config
+from processors.previews.build_previews_json import PreviewsJsonBuilder
+from processors.previews.process_previews_json import PreviewsProcessor
 from utils import config_utils
 from utils.bundle_utils import get_bundled_path
-
-
-class WorkerThread(QtCore.QThread):
-    output_signal = QtCore.pyqtSignal(str)
-    finished_signal = QtCore.pyqtSignal(int)
-
-    def __init__(self, cmd):
-        super().__init__()
-        self.cmd = cmd
-
-    def run(self):
-        proc = subprocess.Popen(self.cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        for line in proc.stdout:
-            self.output_signal.emit(line.rstrip())
-        proc.wait()
-        self.finished_signal.emit(proc.returncode)
+from utils.worker_utils import WorkerThread
 
 
 class PreviewsExporterGUI(QtWidgets.QWidget):
@@ -44,7 +31,7 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
         self.has_output = False  # Initialize the flag
         self.init_ui()
         self.load_config_to_ui()
-        default_json = os.path.abspath('./out/previews.json')
+        default_json = os.path.abspath('./out/all_previews.json')
         # Check if json_path is empty in config, then set default
         if os.path.isfile(default_json) and not self.config.previews_exporter.json_path:
             self.json_path.setText(default_json)
@@ -203,9 +190,12 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
 
     def cancel_worker(self):
         if self.worker and self.worker.isRunning():
-            self.worker.terminate()
+            self.worker.request_cancel()  # Request cancellation
             self.cancelled = True
+            # Manually call finished handler to update UI state
             self.on_subprocess_finished(-1)
+            # Clear the worker reference
+            self.worker = None
         else:
             self.run_build_btn.setEnabled(True)
             self.run_process_btn.setEnabled(True)
@@ -311,11 +301,15 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
 
     def run_build_json(self):
         output_folder = self.output_folder.text().strip()
-        script_path = os.path.join('src', 'processors', 'previews', 'build_previews_json.py')
-        cmd = [sys.executable, script_path, output_folder]
-        self.log_output.append(f"Running: {' '.join(cmd)}")
-        self.show_loading('Processing previews...')
-        self.run_subprocess(cmd)
+        if not output_folder:
+            QMessageBox.warning(self, "Input Error", "Please select an output folder for the JSON file.")
+            return
+
+        builder = PreviewsJsonBuilder(output_folder=output_folder)
+        self.log_output.append(f"Starting JSON build process for output folder: {output_folder}")
+        self.show_loading('Building previews JSON...')
+        self.run_worker(builder.run, {}, logger_name="PreviewsBuilder")
+
         json_path = os.path.join(output_folder, 'previews.json')
         self.json_path.setText(json_path)
         self.proc_output_folder.setText(os.path.abspath('./out/previews'))
@@ -323,26 +317,49 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
     def run_process_py(self):
         json_path = self.json_path.text().strip()
         output_folder = self.proc_output_folder.text().strip()
-        script_path = os.path.join('src', 'processors', 'previews', 'process_previews_json.py')
-        cmd = [sys.executable, script_path, json_path, output_folder]
-        if self.config.previews_exporter.trim_silence:
-            cmd.append('--trim_silence')
-        if self.config.previews_exporter.normalize:
-            cmd.append('--normalize')
-        if self.config.previews_exporter.sample_rate:
-            cmd.extend(['--sample_rate', self.config.previews_exporter.sample_rate])
-        if self.config.previews_exporter.bit_depth:
-            cmd.extend(['--bit_depth', self.config.previews_exporter.bit_depth])
-        self.log_output.append(f"Running: {' '.join(cmd)}")
-        self.show_loading('Exporting previews...')
-        self.run_subprocess(cmd)
 
-    def run_subprocess(self, cmd):
+        if not json_path or not os.path.exists(json_path):
+            QMessageBox.warning(self, "Input Error", "Please select a valid JSON file.")
+            return
+        if not output_folder:
+            QMessageBox.warning(self, "Input Error", "Please select an output folder for the processed previews.")
+            return
+
+        sample_rate_val = None
+        if self.sample_rate.text().strip():
+            try:
+                sample_rate_val = int(self.sample_rate.text().strip())
+            except ValueError:
+                QMessageBox.warning(self, "Input Error", "Sample rate must be an integer.")
+                return
+
+        bit_depth_val = None
+        if self.bit_depth.text().strip():
+            try:
+                bit_depth_val = int(self.bit_depth.text().strip())
+            except ValueError:
+                QMessageBox.warning(self, "Input Error", "Bit depth must be an integer.")
+                return
+
+        processor = PreviewsProcessor(
+            json_path=json_path,
+            output_folder=output_folder,
+            trim_silence_flag=self.config.previews_exporter.trim_silence,
+            normalize_flag=self.config.previews_exporter.normalize,
+            sample_rate=sample_rate_val,
+            bit_depth=bit_depth_val,
+        )
+        self.log_output.append(f"Starting preview export process for JSON: {json_path}")
+        self.show_loading('Exporting previews...')
+        # Pass the logger name "PreviewsProcessor" to the worker
+        self.run_worker(processor.run, {}, logger_name="PreviewsProcessor")
+
+    def run_worker(self, target_callable, kwargs, logger_name=None):
         self.run_build_btn.setEnabled(False)
         self.run_process_btn.setEnabled(False)
         self.has_output = False  # Reset flag before new process
-        self.worker = WorkerThread(cmd)
-        self.worker.output_signal.connect(self.on_worker_output)  # Connect to new slot
+        self.worker = WorkerThread(target_callable, kwargs, logger_name)
+        self.worker.output_signal.connect(self.on_worker_output)
         self.worker.finished_signal.connect(self.on_subprocess_finished)
         self.worker.start()
 
