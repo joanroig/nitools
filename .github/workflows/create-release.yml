@@ -64,7 +64,7 @@ jobs:
         shell: bash
 
       - name: Save code for build
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: source-code
           path: .
@@ -78,7 +78,7 @@ jobs:
 
     steps:
       - name: Download source code
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: source-code
 
