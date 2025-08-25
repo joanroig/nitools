@@ -6,7 +6,6 @@ colorlog==6.9.0
 markdown-pdf==1.7
 pydantic==2.11.7
 pyqtdarktheme-fork==2.3.4
-audioop-lts==0.2.2
 soundfile==0.13.1
-numpy==2.3.2
+numpy==2.2.6
 resampy==0.4.3
