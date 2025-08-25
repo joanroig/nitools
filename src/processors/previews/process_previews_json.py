@@ -14,15 +14,15 @@ class PreviewsProcessor:
         self,
         json_path,
         output_folder,
-        trim_silence_flag=False,
-        normalize_flag=False,
+        trim_silence=False,
+        normalize=False,
         sample_rate=None,
         bit_depth=None
     ):
         self.json_path = json_path
         self.output_folder = output_folder
-        self.trim_silence_flag = trim_silence_flag
-        self.normalize_flag = normalize_flag
+        self.trim_silence = trim_silence
+        self.normalize = normalize
         self.sample_rate = sample_rate
         self.bit_depth = bit_depth
 
@@ -46,8 +46,8 @@ class PreviewsProcessor:
                     trim_and_normalize_wav(
                         input_path=str(ogg_path),
                         output_path=str(wav_path),
-                        trim_silence_flag=self.trim_silence_flag,
-                        normalize_flag=self.normalize_flag,
+                        trim_silence=self.trim_silence,
+                        normalize=self.normalize,
                         sample_rate=self.sample_rate,
                         bit_depth=self.bit_depth,
                     )
@@ -64,8 +64,8 @@ def main(json_path: str, output_folder: str, trim_silence: bool, normalize: bool
     processor = PreviewsProcessor(
         json_path=json_path,
         output_folder=output_folder,
-        trim_silence_flag=trim_silence,
-        normalize_flag=normalize,
+        trim_silence=trim_silence,
+        normalize=normalize,
         sample_rate=sample_rate,
         bit_depth=bit_depth,
     )

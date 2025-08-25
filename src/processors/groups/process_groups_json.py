@@ -51,12 +51,12 @@ class GroupsProcessor:
         self,
         json_path,
         output_folder,
-        trim_silence_flag=False,
+        trim_silence=False,
         matrix=None,
         filter_pads=True,
         pad_filter=None,
         fill_blanks=None,
-        normalize_flag=False,
+        normalize=False,
         sample_rate=None,
         bit_depth=None,
         enable_matrix=True,
@@ -64,12 +64,12 @@ class GroupsProcessor:
     ):
         self.json_path = json_path
         self.output_folder = output_folder
-        self.trim_silence_flag = trim_silence_flag
+        self.trim_silence = trim_silence
         self.matrix = matrix if matrix is not None else DEFAULT_MATRIX
         self.filter_pads = filter_pads
         self.pad_filter = pad_filter if pad_filter is not None else DEFAULT_PAD_FILTER
         self.fill_blanks = fill_blanks
-        self.normalize_flag = normalize_flag
+        self.normalize = normalize
         self.sample_rate = sample_rate
         self.bit_depth = bit_depth
         self.enable_matrix = enable_matrix
@@ -146,7 +146,7 @@ class GroupsProcessor:
                         target_path = os.path.join(group_folder, target_filename)
 
                         try:
-                            trim_and_normalize_wav(source_path, target_path, self.trim_silence_flag, self.normalize_flag, self.sample_rate, self.bit_depth)
+                            trim_and_normalize_wav(source_path, target_path, self.trim_silence, self.normalize, self.sample_rate, self.bit_depth)
                         except Exception as e:
                             logger.error(f"Error processing {source_path}: {e}")
                             shutil.copy2(source_path, target_path)
@@ -168,7 +168,7 @@ class GroupsProcessor:
                                 target_filename = suffix + os.path.basename(source_path)
                                 target_path = os.path.join(group_folder, target_filename)
                                 try:
-                                    trim_and_normalize_wav(source_path, target_path, self.trim_silence_flag, self.normalize_flag, self.sample_rate, self.bit_depth)
+                                    trim_and_normalize_wav(source_path, target_path, self.trim_silence, self.normalize, self.sample_rate, self.bit_depth)
                                 except Exception as e:
                                     logger.error(f"Error processing {source_path}: {e}")
                                     shutil.copy2(source_path, target_path)
@@ -181,7 +181,7 @@ class GroupsProcessor:
                     if os.path.isfile(preview_file):
                         preview_wav = os.path.join(group_folder, "Preview - " + group_name + ".wav")
                         try:
-                            trim_and_normalize_wav(preview_file, preview_wav, self.trim_silence_flag, self.normalize_flag, self.sample_rate, self.bit_depth)
+                            trim_and_normalize_wav(preview_file, preview_wav, self.trim_silence, self.normalize, self.sample_rate, self.bit_depth)
                             logger.info(f"Included preview sample: {preview_wav}")
                         except Exception as e:
                             logger.error(f"Error processing preview {preview_file}: {e}")
@@ -225,12 +225,12 @@ def main(
     processor = GroupsProcessor(
         json_path=json_path,
         output_folder=output_folder,
-        trim_silence_flag=trim_silence,
+        trim_silence=trim_silence,
         matrix=matrix,
         filter_pads=filter_pads,
         pad_filter=pad_filter,
         fill_blanks=actual_fill_blanks_path,
-        normalize_flag=normalize,
+        normalize=normalize,
         sample_rate=sample_rate,
         bit_depth=bit_depth,
         enable_matrix=enable_matrix,

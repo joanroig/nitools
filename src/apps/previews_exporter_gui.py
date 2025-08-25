@@ -344,8 +344,8 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
         processor = PreviewsProcessor(
             json_path=json_path,
             output_folder=output_folder,
-            trim_silence_flag=self.config.previews_exporter.trim_silence,
-            normalize_flag=self.config.previews_exporter.normalize,
+            trim_silence=self.config.previews_exporter.trim_silence,
+            normalize=self.config.previews_exporter.normalize,
             sample_rate=sample_rate_val,
             bit_depth=bit_depth_val,
         )

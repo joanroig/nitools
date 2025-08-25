@@ -465,8 +465,8 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         processor = GroupsProcessor(
             json_path=json_path,
             output_folder=output_folder,
-            trim_silence_flag=self.config.groups_exporter.trim_silence,
-            normalize_flag=self.config.groups_exporter.normalize,
+            trim_silence=self.config.groups_exporter.trim_silence,
+            normalize=self.config.groups_exporter.normalize,
             sample_rate=sample_rate_val,
             bit_depth=bit_depth_val,
             matrix=self.matrix_editor.get_matrix() if self.config.groups_exporter.enable_matrix else None,
