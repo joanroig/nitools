@@ -32,15 +32,8 @@ jobs:
           python-version: "3.13"
           architecture: x64
 
-      - name: Cache Python dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: ${{ runner.os }}-pip-
-
       - name: Install dependencies
-        run: python -m pip install -r requirements.txt --upgrade
+        run: python -m pip install --upgrade pip setuptools wheel && python -m pip install -r requirements.txt
 
       - name: Bump Version
         id: bump_version
@@ -63,12 +56,6 @@ jobs:
           echo "APP_VERSION=$version" >> $GITHUB_OUTPUT
         shell: bash
 
-      - name: Save code for build
-        uses: actions/upload-artifact@v4
-        with:
-          name: source-code
-          path: .
-
   build:
     runs-on: ${{ matrix.os }}
     needs: prepare_release
@@ -77,25 +64,18 @@ jobs:
         os: [windows-latest, macos-latest]
 
     steps:
-      - name: Download source code
-        uses: actions/download-artifact@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
         with:
-          name: source-code
+          fetch-depth: 0
 
       - uses: actions/setup-python@v4
         with:
           python-version: "3.13"
           architecture: x64
 
-      - name: Cache Python dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: ${{ runner.os }}-pip-
-
       - name: Install dependencies
-        run: python -m pip install -r requirements.txt --upgrade
+        run: python -m pip install --upgrade pip setuptools wheel && python -m pip install -r requirements.txt
 
       - name: Bundle application (Windows)
         if: runner.os == 'Windows'
