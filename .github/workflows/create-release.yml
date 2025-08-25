@@ -16,13 +16,15 @@ on:
 
 jobs:
   prepare_release:
-    runs-on: windows-latest # Run this job on a single OS
+    runs-on: windows-latest
     outputs:
       app_version: ${{ steps.get_version.outputs.APP_VERSION }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -30,10 +32,18 @@ jobs:
           python-version: "3.13"
           architecture: x64
 
+      - name: Cache Python dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: ${{ runner.os }}-pip-
+
       - name: Install dependencies
         run: python -m pip install -r requirements.txt --upgrade
 
-      - name: Bump and Commit Version
+      - name: Bump Version
+        id: bump_version
         if: github.event.inputs.version_bump != 'none'
         run: |
           new_version=$(python bump_version.py ${{ github.event.inputs.version_bump }})
@@ -41,52 +51,48 @@ jobs:
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           git add src/utils/version.py
           git commit -m "Bump version to $new_version"
+          git push origin HEAD:${GITHUB_REF}
+          echo "APP_VERSION=$new_version" >> $GITHUB_OUTPUT
         shell: bash
 
-      - name: Push changes
-        if: github.event.inputs.version_bump != 'none'
-        uses: ad-m/github-push-action@v0.6.0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: ${{ github.ref }}
-
-      - name: Move tag to latest commit if bump is none
-        if: github.event.inputs.version_bump == 'none'
-        run: |
-          git fetch --tags
-          version=$(python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)")
-          tag_name="v$version"
-          git tag -d $tag_name || true
-          git push --delete origin $tag_name || true
-          git tag $tag_name
-          git push origin $tag_name
-        shell: bash
-
-      - name: Get Version
+      - name: Get Version (if no bump)
         id: get_version
+        if: github.event.inputs.version_bump == 'none'
         run: |
           version=$(python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)")
           echo "APP_VERSION=$version" >> $GITHUB_OUTPUT
         shell: bash
 
+      - name: Save code for build
+        uses: actions/upload-artifact@v3
+        with:
+          name: source-code
+          path: .
+
   build:
     runs-on: ${{ matrix.os }}
-    needs: prepare_release # This job depends on prepare_release
+    needs: prepare_release
     strategy:
       matrix:
         os: [windows-latest, macos-latest]
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Download source code
+        uses: actions/download-artifact@v3
         with:
-          fetch-depth: 0 # fetch full history
+          name: source-code
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: "3.13"
           architecture: x64
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: python -m pip install -r requirements.txt --upgrade
