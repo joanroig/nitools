@@ -1,5 +1,4 @@
 # dependencies
-pydub==0.25.1
 PyQt6==6.9.1
 pyinstaller==6.15.0
 appdirs==1.4.4
@@ -8,3 +7,6 @@ markdown-pdf==1.7
 pydantic==2.11.7
 pyqtdarktheme-fork==2.3.4
 audioop-lts==0.2.2
+soundfile==0.13.1
+numpy==2.3.2
+resampy==0.4.3
