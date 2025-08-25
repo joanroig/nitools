@@ -1,6 +1,3 @@
-TODO: change .py runners for class runners
-TODO: make logging limit to 200 chars, autoscroll to bottom
-
 <p align="center">
   <a href="https://github.com/joanroig/nitools">
       <img alt="NITools" src="img/logos/nitools.png" width="140px">
@@ -14,7 +11,7 @@ TODO: make logging limit to 200 chars, autoscroll to bottom
 </p>
 
 <p align="center">
-  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.12%2B-blue?logo=python&logoColor=white" alt="Python 3.12"/></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.13%2B-blue?logo=python&logoColor=white" alt="Python 3.13"/></a>
   <a href="https://github.com/joanroig/nitools/releases"><img src="https://img.shields.io/github/v/release/joanroig/nitools?include_prereleases&label=version"/></a>
   <a href="https://github.com/joanroig/nitools/actions"><img alt="GitHub Actions Status" src="https://img.shields.io/github/actions/workflow/status/joanroig/nitools/create-release.yml?branch=main"></a>
   <a href="https://github.com/joanroig/nitools/issues"><img src="https://img.shields.io/github/issues/joanroig/nitools"></a>
