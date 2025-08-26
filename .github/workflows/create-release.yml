@@ -23,7 +23,7 @@ jobs:
   prepare_release:
     runs-on: ubuntu-latest
     outputs:
-      app_version: ${{ steps.get_version.outputs.APP_VERSION }}
+      app_version: ${{ steps.set_version.outputs.APP_VERSION }}
 
     steps:
       - name: Checkout code
