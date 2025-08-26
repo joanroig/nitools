@@ -21,7 +21,7 @@ python -m PyInstaller \
     --noconsole \
     --add-data "./img:img" \
     --add-data "./assets/.wav:assets/.wav" \
-    --icon=img/app.ico \
+    --icon=img/app.icns \
     ./src/launcher.py \
     -n "NITools" \
     --distpath "$distAppPath"
