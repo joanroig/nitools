@@ -51,15 +51,17 @@ jobs:
             git add src/utils/version.py
             git commit -m "Bump version to $new_version" || echo "No changes to commit"
             git push origin ${{ github.ref_name }}
-            echo "APP_VERSION=$new_version" >> $GITHUB_OUTPUT
+            version=$new_version
           else
-            # Prerelease tag
-            git fetch --tags
+            # Use current version from file
             version=$(python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)")
-            # Append GitHub run ID to ensure unique tag
-            prerelease_version="${version}+build${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ID}"
-            echo "APP_VERSION=$prerelease_version" >> $GITHUB_OUTPUT
           fi
+
+          # Force-create/update tag
+          git tag -f v$version
+          git push origin -f v$version
+
+          echo "APP_VERSION=$version" >> $GITHUB_OUTPUT
 
   build:
     runs-on: ${{ matrix.os }}
@@ -119,7 +121,7 @@ jobs:
           files: ./dist/NITools_${{ runner.os }}_v${{ needs.prepare_release.outputs.app_version }}.zip
           name: Release v${{ needs.prepare_release.outputs.app_version }}
           draft: false
-          prerelease: ${{ github.event.inputs.version_bump == 'none' }}
+          prerelease: false
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
