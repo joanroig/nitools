@@ -1,12 +1,11 @@
 #!/bin/bash
 
-# Ensure the dist folder exists
+# Paths
 distPath="./dist"
 distAppPath="$distPath/NITools"
 
+# Ensure dist folder exists and remove old distribution
 mkdir -p "$distPath"
-
-# Delete previous distribution app folder if it exists
 if [ -d "$distAppPath" ]; then
     rm -rf "$distAppPath"
 fi
@@ -14,19 +13,19 @@ fi
 # Fetch version number from src/utils/version.py
 VERSION=$(python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)")
 
-# Run PyInstaller to bundle the app
+# Run PyInstaller to bundle the app as a macOS .app
 python -m PyInstaller \
     --noconfirm \
-    --onefile \
-    --noconsole \
+    --windowed \
     --add-data "./img:img" \
     --add-data "./assets/.wav:assets/.wav" \
     --icon=img/app.icns \
     ./src/launcher.py \
     -n "NITools" \
-    --distpath "$distAppPath"
+    --distpath "$distAppPath" \
+    --osx-bundle-identifier "com.moaibeats.nitools"
 
-# Generate PDFs
+# Generate PDF guide
 python docs/makepdf.py docs/GUIDE.md "$distAppPath/nitools-guide.pdf"
 
 # Change directory to dist

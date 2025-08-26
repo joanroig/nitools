@@ -1,12 +1,9 @@
-# Ensure the dist folder exists
+# Paths
 $distPath = "./dist"
 $distAppPath = Join-Path $distPath "NITools"
 
-if (-not (Test-Path $distPath)) {
-    New-Item -ItemType Directory -Path $distPath | Out-Null
-}
-
-# Delete previous distribution app folder if it exists
+# Ensure dist folder exists and remove old distribution
+New-Item -ItemType Directory -Path $distPath -Force | Out-Null
 if (Test-Path $distAppPath) {
     Remove-Item $distAppPath -Recurse -Force
 }
@@ -14,7 +11,7 @@ if (Test-Path $distAppPath) {
 # Fetch version number from src/utils/version.py
 $VERSION = python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)" | ForEach-Object { $_.Trim() }
 
-# Run PyInstaller to bundle the app
+# Run PyInstaller to bundle the app as a single Windows .exe
 python -m PyInstaller `
     --noconfirm `
     --onefile `
@@ -26,7 +23,7 @@ python -m PyInstaller `
     -n "NITools" `
     --distpath $distAppPath
 
-# Generate PDFs
+# Generate PDF guide
 python docs/makepdf.py docs/GUIDE.md "$distAppPath/nitools-guide.pdf"
 
 # Change directory to dist
