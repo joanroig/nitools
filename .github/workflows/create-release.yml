@@ -26,11 +26,10 @@ jobs:
       app_version: ${{ steps.set_version.outputs.APP_VERSION }}
 
     steps:
-      - name: Checkout latest code
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.ref_name }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -72,10 +71,11 @@ jobs:
         os: [windows-latest, macos-latest]
 
     steps:
-      - name: Checkout code
+      - name: Checkout latest code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.ref_name }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
