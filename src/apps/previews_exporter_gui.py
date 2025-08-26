@@ -23,7 +23,7 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
         super().__init__()
         self.setWindowIcon(QtGui.QIcon(get_bundled_path("img/logos/previews.png")))
         self.setWindowTitle('NITools - Previews Exporter')
-        self.setMinimumWidth(700)
+        self.setMinimumWidth(800)
         self.config: Config = config_utils.load_config()
         self.worker = None
         self.progress_dialog = None

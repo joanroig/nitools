@@ -6,26 +6,12 @@ import shutil
 import sys
 from pathlib import Path
 
+from models.matrix_config import DEFAULT_MATRIX, MatrixConfig
+from models.pad_filter_config import DEFAULT_PAD_FILTER, PadFilterConfig
 from utils.audio_utils import trim_and_normalize_wav
-from utils.constants import LOGS_PATH
 from utils.logger import Logger
 
 logger = Logger.get_logger("GroupsProcessor")
-
-# Default Roland matrix from original pad -> target pad
-DEFAULT_MATRIX = {
-    1: 13, 2: 14, 3: 15, 4: 16,
-    5: 9, 6: 10, 7: 11, 8: 12,
-    9: 5, 10: 6, 11: 7, 12: 8,
-    13: 1, 14: 2, 15: 3, 16: 4
-}
-
-# Default pad filter keywords for filtering groups
-DEFAULT_PAD_FILTER = {
-    1: ["kick"],
-    2: ["snare", "snap", "clap"],
-    3: ["hh", "hihat", "hi hat", "shaker"]
-}
 
 
 def pick_multisample_path(paths):
@@ -95,7 +81,7 @@ class GroupsProcessor:
                         return 1  # Return non-zero for cancellation
                     samples = group.get('samples', [])
                     match = True
-                    for pad_num, keywords in self.pad_filter.items():
+                    for pad_num, keywords in self.pad_filter.pads.items():
                         pad_sample = next((s for s in samples if s.get('pad') == pad_num), None)
                         if not pad_contains(pad_sample, keywords):
                             match = False
@@ -127,7 +113,8 @@ class GroupsProcessor:
                         return 1  # Return non-zero for cancellation
 
                     sample = pad_to_sample.get(original_pad)
-                    target_pad = self.matrix.get(original_pad, original_pad) if self.enable_matrix else original_pad
+                    # Access the internal dictionary of MatrixConfig
+                    target_pad = self.matrix.pads.get(original_pad, original_pad) if self.enable_matrix else original_pad
                     suffix = f"{target_pad:02d}_"
 
                     if sample:
@@ -206,17 +193,21 @@ def main(
     enable_matrix: bool,
     include_preview: bool
 ):
-    matrix = None
+    # Matrix
     if matrix_json:
         with open(matrix_json, 'r', encoding='utf-8') as f:
-            matrix = json.load(f)
-            matrix = {int(k): v for k, v in matrix.items()}
+            loaded_dict = {int(k): v for k, v in json.load(f).items()}
+            matrix = MatrixConfig(loaded_dict)
+    else:
+        matrix = MatrixConfig()
 
-    pad_filter = None
+    # Pad filter
     if filter_pads_json:
         with open(filter_pads_json, 'r', encoding='utf-8') as f:
-            pad_filter = json.load(f)
-            pad_filter = {int(k): v for k, v in pad_filter.items()}
+            loaded_dict = {int(k): v for k, v in json.load(f).items()}
+            pad_filter = PadFilterConfig(loaded_dict)
+    else:
+        pad_filter = PadFilterConfig()
 
     actual_fill_blanks_path = None
     if fill_blanks and fill_blanks_path:

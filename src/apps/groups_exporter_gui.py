@@ -25,7 +25,7 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         super().__init__()
         self.setWindowIcon(QtGui.QIcon(get_bundled_path("img/logos/groups.png")))
         self.setWindowTitle('NITools - Groups Exporter')
-        self.setMinimumWidth(700)
+        self.setMinimumWidth(800)
         self.config: Config = config_utils.load_config()
         self.worker = None
         self.progress_dialog = None
@@ -159,12 +159,7 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         self.enable_matrix.setToolTip('If checked, pads will be reordered according to the matrix below.')
         self.matrix_toggle_btn = QtWidgets.QPushButton('Show Matrix')
         self.matrix_toggle_btn.setToolTip('Toggle the visibility of the pad reorder matrix editor.')
-        self.matrix_editor = MatrixEditor({
-            1: 13, 2: 14, 3: 15, 4: 16,
-            5: 9, 6: 10, 7: 11, 8: 12,
-            9: 5, 10: 6, 11: 7, 12: 8,
-            13: 1, 14: 2, 15: 3, 16: 4
-        })
+        self.matrix_editor = MatrixEditor()
         self.matrix_editor.setVisible(False)
         self.matrix_toggle_btn.setCheckable(True)
         self.matrix_toggle_btn.setChecked(False)
@@ -183,11 +178,7 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         self.filter_pads.setToolTip('If checked, only groups where every pad matches at least one of its keywords will be included.')
         self.pad_filter_toggle_btn = QtWidgets.QPushButton('Show Pad Filter Editor')
         self.pad_filter_toggle_btn.setToolTip('Toggle the visibility of the pad filter editor.')
-        self.pad_filter_editor = PadFilterEditor({
-            1: ["kick"],
-            2: ["snare", "snap", "clap"],
-            3: ["hh", "hihat", "hi hat", "shaker"]
-        })
+        self.pad_filter_editor = PadFilterEditor()
         self.pad_filter_editor.setVisible(False)
         self.pad_filter_toggle_btn.setCheckable(True)
         self.pad_filter_toggle_btn.setChecked(False)
@@ -309,6 +300,8 @@ class GroupsExporterGUI(QtWidgets.QWidget):
             (self.fill_blanks, 'fill_blanks'),
             (self.fill_blanks_path, 'fill_blanks_path'),
             (self.bottom_banner.show_terminal_button, 'show_terminal'),
+            (self.enable_matrix, 'enable_matrix'),
+            (self.filter_pads, 'filter_pads'),
         ]:
             if isinstance(widget, QtWidgets.QLineEdit):
                 widget.textChanged.connect(lambda val, k=key: self.on_config_changed(k, val))
@@ -317,9 +310,21 @@ class GroupsExporterGUI(QtWidgets.QWidget):
             elif isinstance(widget, QtWidgets.QPushButton) and widget.isCheckable():
                 widget.toggled.connect(lambda val, k=key, w=widget: self.on_config_changed(k, w.isChecked()))
 
+        # Connect editor-specific signals
+        self.matrix_editor.matrix_changed.connect(self.on_matrix_config_changed)
+        self.pad_filter_editor.pad_filter_changed.connect(self.on_pad_filter_config_changed)
+
     def on_config_changed(self, key, value):
         # Update the specific attribute in the groups_exporter sub-model
         setattr(self.config.groups_exporter, key, value)
+        config_utils.save_config(self.config)
+
+    def on_matrix_config_changed(self):
+        self.config.groups_exporter.matrix_config = self.matrix_editor.get_matrix()
+        config_utils.save_config(self.config)
+
+    def on_pad_filter_config_changed(self):
+        self.config.groups_exporter.pad_filter_config = self.pad_filter_editor.get_pad_filter()
         config_utils.save_config(self.config)
 
     def load_config_to_ui(self):
@@ -334,7 +339,9 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         self.sample_rate.setText(c.sample_rate)
         self.bit_depth.setText(c.bit_depth)
         self.enable_matrix.setChecked(c.enable_matrix)
+        self.matrix_editor.set_matrix(self.config.groups_exporter.matrix_config)
         self.filter_pads.setChecked(c.filter_pads)
+        self.pad_filter_editor.set_pad_filter(self.config.groups_exporter.pad_filter_config)
         self.include_preview.setChecked(c.include_preview)
         self.fill_blanks.setChecked(c.fill_blanks)
         self.fill_blanks_path.setText(c.fill_blanks_path)
@@ -344,11 +351,15 @@ class GroupsExporterGUI(QtWidgets.QWidget):
         enabled = bool(self.json_path.text().strip()) and self.enable_matrix.isChecked()
         self.matrix_editor.setEnabled(enabled)
         self.matrix_toggle_btn.setEnabled(enabled)
+        # Ensure matrix editor visibility is consistent with toggle button state
+        self.matrix_editor.setVisible(self.matrix_toggle_btn.isChecked() and enabled)
 
     def _update_pad_filter_editor_state(self):
         enabled = bool(self.json_path.text().strip()) and self.filter_pads.isChecked()
         self.pad_filter_editor.setEnabled(enabled)
         self.pad_filter_toggle_btn.setEnabled(enabled)
+        # Ensure pad filter editor visibility is consistent with toggle button state
+        self.pad_filter_editor.setVisible(self.pad_filter_toggle_btn.isChecked() and enabled)
 
     def set_step2_enabled(self, enabled):
         widgets = [

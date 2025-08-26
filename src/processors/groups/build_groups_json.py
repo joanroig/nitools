@@ -256,6 +256,14 @@ def clear_parsed_folder(output_folder: str):
         shutil.rmtree(parsed_folder)
     os.makedirs(parsed_folder, exist_ok=True)
 
+def find_group_path(path):
+    path = os.path.abspath(path)
+    while not os.path.isdir(os.path.join(path, "Samples")):
+        parent = os.path.dirname(path)
+        if parent == path:
+            raise FileNotFoundError("No 'Samples' folder found.")
+        path = parent
+    return path.replace('\\', '/')
 
 def process_mxgrp_file(input_file: str, output_folder: str, generate_txt: bool = True) -> dict:
     with open(input_file, "rb") as f:
@@ -300,13 +308,12 @@ def process_mxgrp_file(input_file: str, output_folder: str, generate_txt: bool =
         with open(output_filepath, "w", encoding="utf-8") as f:
             f.write('\n'.join(filtered))
 
-    abs_input_path = os.path.abspath(input_file)
-    folder_two_levels_up = os.path.dirname(os.path.dirname(os.path.dirname(abs_input_path))).replace('\\', '/')
+    group_path = find_group_path(input_file)
 
     group_info = {
         "group": group_name.strip(),
         "expansion": expansion_name,
-        "path": folder_two_levels_up,
+        "path": group_path,
         "samples": sample_data,
         "txt_file": output_filepath,
     }

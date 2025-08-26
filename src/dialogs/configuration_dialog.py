@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFormLayout,
                              QHBoxLayout, QLineEdit, QMessageBox, QPushButton,
                              QSpinBox, QVBoxLayout)
 
+from models.config import Config
 from utils.config_utils import load_config, save_config
 from utils.constants import LOGS_PATH, get_data_dir
 from utils.enums import Style
@@ -76,6 +77,11 @@ class ConfigurationDialog(QDialog):
         self.import_button.clicked.connect(self.import_config)
         bottom_layout.addWidget(self.import_button)
         self.buttons.append(self.import_button)
+
+        self.reset_button = QPushButton("Reset Config")
+        self.reset_button.clicked.connect(self.reset_config)
+        bottom_layout.addWidget(self.reset_button)
+        self.buttons.append(self.reset_button)
 
         # Spacer between left and right buttons
         bottom_layout.addStretch()
@@ -175,3 +181,29 @@ class ConfigurationDialog(QDialog):
         except Exception as e:
             logger.error(f"Failed to import config: {e}")
             QMessageBox.critical(self, "Import Failed", f"Failed to import configuration:\n{e}")
+
+    def reset_config(self):
+        reply = QMessageBox.question(
+            self,
+            "Confirm Reset",
+            "Are you sure you want to reset all configuration settings to their default values?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                # Create a new default config instance
+                default_config = Config()
+                save_config(default_config)  # Save the default config
+                self.config = default_config  # Update internal config reference
+
+                # Apply the default style
+                apply_style(self.config.style)
+
+                # Update the UI fields to reflect default values
+                self.populate_fields()
+                QMessageBox.information(self, "Reset Successful", "Configuration has been reset to default values.")
+            except Exception as e:
+                logger.error(f"Failed to reset config: {e}")
+                QMessageBox.critical(self, "Reset Failed", f"Failed to reset configuration:\n{e}")

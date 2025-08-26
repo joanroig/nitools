@@ -1,52 +1,74 @@
-from PyQt6 import QtWidgets
+from PyQt6 import QtCore, QtWidgets
+
+from models.pad_filter_config import PadFilterConfig
 
 
 class PadFilterEditor(QtWidgets.QWidget):
-    def __init__(self, default_filter, parent=None):
+    pad_filter_changed = QtCore.pyqtSignal()
+
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.pad_select = QtWidgets.QComboBox()
-        self.pad_select.addItems([str(i) for i in range(1, 17)])
-        self.keyword_list = QtWidgets.QListWidget()
-        self.keyword_input = QtWidgets.QLineEdit()
-        self.add_btn = QtWidgets.QPushButton('Add')
-        self.remove_btn = QtWidgets.QPushButton('Remove Selected')
-        self.pad_filters = {i: default_filter.get(i, [])[:] for i in range(1, 17)}
-        self.pad_select.currentIndexChanged.connect(self.load_pad_keywords)
-        self.add_btn.clicked.connect(self.add_keyword)
-        self.remove_btn.clicked.connect(self.remove_selected)
-        self.load_pad_keywords()
-        layout = QtWidgets.QVBoxLayout()
-        layout.addWidget(QtWidgets.QLabel('Pad (1-16):'))
-        layout.addWidget(self.pad_select)
-        layout.addWidget(QtWidgets.QLabel('Keywords:'))
-        layout.addWidget(self.keyword_list)
-        hlayout = QtWidgets.QHBoxLayout()
-        hlayout.addWidget(self.keyword_input)
-        hlayout.addWidget(self.add_btn)
-        layout.addLayout(hlayout)
-        layout.addWidget(self.remove_btn)
-        self.setLayout(layout)
 
-    def load_pad_keywords(self):
-        pad = int(self.pad_select.currentText())
-        self.keyword_list.clear()
-        for kw in self.pad_filters.get(pad, []):
-            self.keyword_list.addItem(kw)
+        self.table = QtWidgets.QTableWidget(16, 2)
+        self.table.setHorizontalHeaderLabels(["Pad", "Keywords (comma-separated)"])
+        self.table.verticalHeader().setVisible(False)
+        self.table.setColumnWidth(0, 50)
+        self.table.horizontalHeader().setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.Stretch)
+        self.table.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.table.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
-    def add_keyword(self):
-        pad = int(self.pad_select.currentText())
-        kw = self.keyword_input.text().strip()
-        if kw:
-            self.pad_filters.setdefault(pad, []).append(kw)
-            self.keyword_input.clear()
-            self.load_pad_keywords()
+        # Initialize table rows
+        for pad_num in range(1, 17):
+            self._set_pad_row(pad_num)
 
-    def remove_selected(self):
-        pad = int(self.pad_select.currentText())
-        selected = self.keyword_list.selectedItems()
-        for item in selected:
-            self.pad_filters[pad].remove(item.text())
-        self.load_pad_keywords()
+        self.table.resizeRowsToContents()
+        self._adjust_table_height()
 
-    def get_pad_filter(self):
-        return {pad: kws for pad, kws in self.pad_filters.items() if kws}
+        self.table.itemChanged.connect(self._on_item_changed)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.table)
+
+    def _set_pad_row(self, pad_num):
+        pad_item = QtWidgets.QTableWidgetItem(str(pad_num))
+        pad_item.setFlags(pad_item.flags() & ~QtCore.Qt.ItemFlag.ItemIsEditable)
+        self.table.setItem(pad_num - 1, 0, pad_item)
+
+        self.table.setItem(pad_num - 1, 1, QtWidgets.QTableWidgetItem())
+
+    def _adjust_table_height(self):
+        total_height = self.table.horizontalHeader().height() + sum(
+            self.table.rowHeight(i) for i in range(self.table.rowCount())
+        )
+        self.table.setFixedHeight(total_height)
+
+    def _on_item_changed(self, item):
+        if item.column() == 1:
+            self.pad_filter_changed.emit()
+
+    def get_pad_filter(self) -> PadFilterConfig:
+        pad_data = {}
+        for row in range(16):
+            keywords_item = self.table.item(row, 1)
+            if keywords_item:
+                keywords = [kw.strip().lower() for kw in keywords_item.text().split(",") if kw.strip()]
+                if keywords:
+                    pad_data[row + 1] = keywords
+        self._pad_filter_config.pads = pad_data
+        return self._pad_filter_config
+
+    def set_pad_filter(self, pad_filter_config: PadFilterConfig):
+        # Disconnect to prevent signal emission during programmatic update
+        self.table.itemChanged.disconnect(self._on_item_changed)
+        self._pad_filter_config = pad_filter_config
+
+        for row in range(16):
+            keywords_item = self.table.item(row, 1)
+            if keywords_item:
+                keywords_item.setText(", ".join(self._pad_filter_config.pads.get(row + 1, [])))
+
+        self.table.resizeRowsToContents()
+        self._adjust_table_height()
+        # Reconnect after update
+        self.table.itemChanged.connect(self._on_item_changed)
