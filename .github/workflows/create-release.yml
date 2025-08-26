@@ -14,47 +14,57 @@ on:
           - minor
           - major
 
+# Prevent multiple release workflows in parallel
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   prepare_release:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     outputs:
       app_version: ${{ steps.get_version.outputs.APP_VERSION }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-          architecture: x64
 
       - name: Install dependencies
-        run: python -m pip install --upgrade pip setuptools wheel && python -m pip install -r requirements.txt
+        run: python -m pip install -r requirements.txt --upgrade
 
-      - name: Bump Version
-        id: bump_version
+      - name: Bump, Commit and Push Version
         if: github.event.inputs.version_bump != 'none'
+        id: bump_and_push
         run: |
           new_version=$(python bump_version.py ${{ github.event.inputs.version_bump }})
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           git add src/utils/version.py
-          git commit -m "Bump version to $new_version"
-          git push origin HEAD:${GITHUB_REF}
-          echo "APP_VERSION=$new_version" >> $GITHUB_OUTPUT
-        shell: bash
+          git commit -m "Bump version to $new_version" || echo "No changes to commit"
+          git push origin ${{ github.ref_name }}
 
-      - name: Get Version (if no bump)
-        id: get_version
+      - name: Move tag to latest commit if bump is none
         if: github.event.inputs.version_bump == 'none'
+        id: move_tag
+        run: |
+          git fetch --tags
+          version=$(python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)")
+          tag_name="v$version"
+          git tag -f $tag_name
+          git push origin -f $tag_name
+
+      - name: Get Version
+        id: get_version
         run: |
           version=$(python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)")
           echo "APP_VERSION=$version" >> $GITHUB_OUTPUT
-        shell: bash
 
   build:
     runs-on: ${{ matrix.os }}
@@ -65,17 +75,17 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-          architecture: x64
 
       - name: Install dependencies
-        run: python -m pip install --upgrade pip setuptools wheel && python -m pip install -r requirements.txt
+        run: python -m pip install -r requirements.txt --upgrade
 
       - name: Bundle application (Windows)
         if: runner.os == 'Windows'
@@ -86,6 +96,14 @@ jobs:
         if: runner.os == 'macOS'
         run: bash ./bundle_app_macos.sh
         shell: bash
+
+      - name: Verify artifact exists
+        run: |
+          file="./dist/NITools_${{ runner.os }}_v${{ needs.prepare_release.outputs.app_version }}.zip"
+          if [ ! -f "$file" ]; then
+            echo "::error::Expected artifact not found: $file"
+            exit 1
+          fi
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v1
