@@ -1,5 +1,5 @@
 # App version
-APP_VERSION = "0.1.3"
+APP_VERSION = "0.1.4"
 
 # Configuration file version
 CONFIG_VERSION = "1.0"
