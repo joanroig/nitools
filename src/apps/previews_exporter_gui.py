@@ -93,7 +93,7 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
         process_form_layout = QtWidgets.QFormLayout()
 
         self.json_path = QtWidgets.QLineEdit()
-        self.json_path.setToolTip('Select the JSON file generated in Step 1 (e.g., previews.json).')
+        self.json_path.setToolTip('Select the JSON file generated in Step 1 (e.g., all_previews.json).')
         self.json_path_btn = QtWidgets.QPushButton('Choose')
         self.json_path_btn.setToolTip('Browse for the JSON file.')
         self.json_path_btn.clicked.connect(self.choose_json_file)
@@ -310,7 +310,7 @@ class PreviewsExporterGUI(QtWidgets.QWidget):
         self.show_loading('Building previews JSON...')
         self.run_worker(builder.run, {}, logger_name="PreviewsBuilder")
 
-        json_path = os.path.join(output_folder, 'previews.json')
+        json_path = os.path.join(output_folder, 'all_previews.json')
         self.json_path.setText(json_path)
         self.proc_output_folder.setText(os.path.abspath('./out/previews'))
 
