@@ -7,7 +7,7 @@
 <h1 align="center">NITools</h1>
 
 <p align="center">
-  Unofficial tools to transform <b>Native Instruments</b> resources for use on other devices and workflows.
+  NITools is an unofficial suite to extract, convert, and repurpose Native Instruments content, making it easy to use your kits, samples, and previews on other devices and workflows.
 </p>
 
 <p align="center">
