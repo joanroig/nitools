@@ -39,36 +39,33 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt --upgrade
 
-      - name: Bump, Commit and Push Version
-        if: github.event.inputs.version_bump != 'none'
-        id: bump_and_push
+      - name: Determine Version and Tag
+        id: set_version
         run: |
-          new_version=$(python bump_version.py ${{ github.event.inputs.version_bump }})
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add src/utils/version.py
-          git commit -m "Bump version to $new_version" || echo "No changes to commit"
-          git push origin ${{ github.ref_name }}
 
-      - name: Move tag to latest commit if bump is none
-        if: github.event.inputs.version_bump == 'none'
-        id: move_tag
-        run: |
-          git fetch --tags
-          version=$(python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)")
-          tag_name="v$version"
-          git tag -f $tag_name
-          git push origin -f $tag_name
-
-      - name: Get Version
-        id: get_version
-        run: |
-          version=$(python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)")
-          echo "APP_VERSION=$version" >> $GITHUB_OUTPUT
+          if [ "${{ github.event.inputs.version_bump }}" != "none" ]; then
+            # Bump version
+            new_version=$(python bump_version.py ${{ github.event.inputs.version_bump }})
+            git add src/utils/version.py
+            git commit -m "Bump version to $new_version" || echo "No changes to commit"
+            git push origin ${{ github.ref_name }}
+            echo "APP_VERSION=$new_version" >> $GITHUB_OUTPUT
+          else
+            # Prerelease tag
+            git fetch --tags
+            version=$(python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)")
+            # Append GitHub run ID to ensure unique tag
+            prerelease_version="${version}+build${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ID}"
+            echo "APP_VERSION=$prerelease_version" >> $GITHUB_OUTPUT
+          fi
 
   build:
     runs-on: ${{ matrix.os }}
     needs: prepare_release
+    env:
+      APP_VERSION: ${{ needs.prepare_release.outputs.app_version }}
     strategy:
       matrix:
         os: [windows-latest, macos-latest]
@@ -92,27 +89,39 @@ jobs:
         run: powershell -ExecutionPolicy Bypass -File .\bundle_app_windows.ps1
         shell: pwsh
 
+      - name: Verify artifact exists (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          $file = "./dist/NITools_${{ runner.os }}_v$env:APP_VERSION.zip"
+          if (-Not (Test-Path $file)) {
+            Write-Error "Expected artifact not found: $file"
+            exit 1
+          }
+        shell: pwsh
+
       - name: Bundle application (macOS)
         if: runner.os == 'macOS'
         run: bash ./bundle_app_macos.sh
         shell: bash
 
-      - name: Verify artifact exists
+      - name: Verify artifact exists (macOS)
+        if: runner.os == 'macOS'
         run: |
-          file="./dist/NITools_${{ runner.os }}_v${{ needs.prepare_release.outputs.app_version }}.zip"
+          file="./dist/NITools_${{ runner.os }}_v$APP_VERSION.zip"
           if [ ! -f "$file" ]; then
             echo "::error::Expected artifact not found: $file"
             exit 1
           fi
+        shell: bash
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ needs.prepare_release.outputs.app_version }}
-          files: ./dist/NITools_${{ runner.os }}_v${{ needs.prepare_release.outputs.app_version }}.zip
-          name: Release v${{ needs.prepare_release.outputs.app_version }}
+          tag_name: v$APP_VERSION
+          files: ./dist/NITools_${{ runner.os }}_v$APP_VERSION.zip
+          name: Release v$APP_VERSION
           draft: false
-          prerelease: false
+          prerelease: ${{ github.event.inputs.version_bump == 'none' }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
