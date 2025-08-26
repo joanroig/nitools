@@ -64,8 +64,6 @@ jobs:
   build:
     runs-on: ${{ matrix.os }}
     needs: prepare_release
-    env:
-      APP_VERSION: ${{ needs.prepare_release.outputs.app_version }}
     strategy:
       matrix:
         os: [windows-latest, macos-latest]
@@ -92,7 +90,7 @@ jobs:
       - name: Verify artifact exists (Windows)
         if: runner.os == 'Windows'
         run: |
-          $file = "./dist/NITools_${{ runner.os }}_v$env:APP_VERSION.zip"
+          $file = "./dist/NITools_${{ runner.os }}_v${{ needs.prepare_release.outputs.app_version }}.zip"
           if (-Not (Test-Path $file)) {
             Write-Error "Expected artifact not found: $file"
             exit 1
@@ -107,7 +105,7 @@ jobs:
       - name: Verify artifact exists (macOS)
         if: runner.os == 'macOS'
         run: |
-          file="./dist/NITools_${{ runner.os }}_v$APP_VERSION.zip"
+          file="./dist/NITools_${{ runner.os }}_v${{ needs.prepare_release.outputs.app_version }}.zip"
           if [ ! -f "$file" ]; then
             echo "::error::Expected artifact not found: $file"
             exit 1
@@ -117,9 +115,9 @@ jobs:
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v$APP_VERSION
-          files: ./dist/NITools_${{ runner.os }}_v$APP_VERSION.zip
-          name: Release v$APP_VERSION
+          tag_name: v${{ needs.prepare_release.outputs.app_version }}
+          files: ./dist/NITools_${{ runner.os }}_v${{ needs.prepare_release.outputs.app_version }}.zip
+          name: Release v${{ needs.prepare_release.outputs.app_version }}
           draft: false
           prerelease: ${{ github.event.inputs.version_bump == 'none' }}
           generate_release_notes: true
