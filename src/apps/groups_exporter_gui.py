@@ -16,17 +16,19 @@ from processors.groups.build_groups_json import GroupsJsonBuilder
 from processors.groups.process_groups_json import GroupsProcessor
 from utils import config_utils
 from utils.bundle_utils import get_bundled_path
+from utils.utils import apply_style
 from utils.worker_utils import WorkerThread
 
 
-class GroupsExporterGUI(QtWidgets.QWidget):
+class GroupsExporterGUI(QtWidgets.QDialog):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self.setWindowIcon(QtGui.QIcon(get_bundled_path("img/logos/groups.png")))
         self.setWindowTitle('NITools - Groups Exporter')
         self.setMinimumWidth(800)
         self.config: Config = config_utils.load_config()
+        apply_style(self.config.style)  # Apply styke for standalone execution
         self.worker = None
         self.progress_dialog = None
         self.cancelled = False

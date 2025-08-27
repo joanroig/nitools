@@ -44,8 +44,6 @@ class MainGUI(QtWidgets.QMainWindow):
         self.layout.setContentsMargins(20, 20, 20, 20)
         self.layout.setSpacing(15)
 
-        self.tool_windows = []
-
         self.init_ui()
 
     def init_ui(self):
@@ -247,9 +245,8 @@ class MainGUI(QtWidgets.QMainWindow):
         return config_btn
 
     def launch_tool(self, tool_class):
-        tool_window = tool_class()
-        self.tool_windows.append(tool_window)
-        tool_window.show()
+        tool_window = tool_class(self)
+        tool_window.exec()
 
     def launch_groups_exporter(self):
         self.launch_tool(GroupsExporterGUI)

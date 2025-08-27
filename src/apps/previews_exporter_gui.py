@@ -14,21 +14,22 @@ from processors.previews.build_previews_json import PreviewsJsonBuilder
 from processors.previews.process_previews_json import PreviewsProcessor
 from utils import config_utils
 from utils.bundle_utils import get_bundled_path
+from utils.utils import apply_style
 from utils.worker_utils import WorkerThread
 
 
-class PreviewsExporterGUI(QtWidgets.QWidget):
-
-    def __init__(self):
-        super().__init__()
+class PreviewsExporterGUI(QtWidgets.QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self.setWindowIcon(QtGui.QIcon(get_bundled_path("img/logos/previews.png")))
         self.setWindowTitle('NITools - Previews Exporter')
         self.setMinimumWidth(800)
         self.config: Config = config_utils.load_config()
+        apply_style(self.config.style)  # Apply styke for standalone execution
         self.worker = None
         self.progress_dialog = None
         self.cancelled = False
-        self.has_output = False  # Initialize the flag
+        self.has_output = False
         self.init_ui()
         self.load_config_to_ui()
         default_json = os.path.abspath('./out/all_previews.json')
