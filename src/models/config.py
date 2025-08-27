@@ -15,3 +15,5 @@ class Config(BaseModel):
     log_panel_sizes: list[int] = []
     groups_exporter: GroupsExporterConfig = GroupsExporterConfig()
     previews_exporter: PreviewsExporterConfig = PreviewsExporterConfig()
+    custom_color: str = "#D0BCFF"
+    enable_custom_color: bool = False

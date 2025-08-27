@@ -44,6 +44,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.layout.setContentsMargins(20, 20, 20, 20)
         self.layout.setSpacing(15)
 
+        self.version_label = VersionLabel()
         self.init_ui()
 
     def init_ui(self):
@@ -68,13 +69,12 @@ class MainGUI(QtWidgets.QMainWindow):
         header_layout.addStretch()
 
         # Add a fixed-width spacer to balance the config button on the left
-        # The width should ideally match the config_button's effective width
         dummy_spacer_width = config_button.sizeHint().width()
         header_layout.addSpacerItem(
             QtWidgets.QSpacerItem(dummy_spacer_width, 0, QtWidgets.QSizePolicy.Policy.Fixed,
                                   QtWidgets.QSizePolicy.Policy.Minimum))
 
-        self.layout.addWidget(header_widget)  # Add the new header widget to the main layout
+        self.layout.addWidget(header_widget)
         self.layout.addSpacing(10)
 
         self._create_tool_buttons()
@@ -83,8 +83,7 @@ class MainGUI(QtWidgets.QMainWindow):
 
         self.layout.addWidget(self._create_bottom_banner())
 
-        version = VersionLabel()
-        self.layout.addWidget(version)
+        self.layout.addWidget(self.version_label)
 
     def _create_centered_title_widget(self):
         # --- Title at the top ---
@@ -256,7 +255,12 @@ class MainGUI(QtWidgets.QMainWindow):
 
     def launch_config(self):
         dialog = ConfigurationDialog(self)
-        dialog.exec()
+        if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
+            # refresh version label style in case theme changed
+            new_label = VersionLabel()
+            self.layout.replaceWidget(self.version_label, new_label)
+            self.version_label.deleteLater()
+            self.version_label = new_label
 
 
 def handle_exception(exc_type, exc_value, exc_traceback):

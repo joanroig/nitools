@@ -2,9 +2,12 @@ import logging
 import platform
 import subprocess
 
-from PyQt6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFormLayout,
-                             QHBoxLayout, QLineEdit, QMessageBox, QPushButton,
-                             QSpinBox, QVBoxLayout)
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor, QPalette
+from PyQt6.QtWidgets import (QCheckBox, QColorDialog,
+                             QComboBox, QDialog, QDialogButtonBox, QFormLayout,
+                             QGroupBox, QHBoxLayout, QLabel, QLineEdit,
+                             QMessageBox, QPushButton, QSpinBox, QVBoxLayout)
 
 from models.config import Config
 from utils.config_utils import load_config, save_config
@@ -24,11 +27,13 @@ class ConfigurationDialog(QDialog):
         self.setWindowTitle("Configuration")
         self.setMinimumWidth(800)
 
-        layout = QVBoxLayout()
-        form_layout = QFormLayout()
-        form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
-
+        main_layout = QVBoxLayout()
         self.buttons = []  # Store buttons for uniform sizing
+
+        # Paths Section
+        paths_group_box = QGroupBox("Paths")
+        paths_layout = QFormLayout()
+        paths_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
 
         # Logs Path
         logs_path_layout = QHBoxLayout()
@@ -41,7 +46,7 @@ class ConfigurationDialog(QDialog):
         open_logs_button.clicked.connect(self.open_logs_path)
         logs_path_layout.addWidget(open_logs_button)
         self.buttons.append(open_logs_button)
-        form_layout.addRow("Logs Path:", logs_path_layout)
+        paths_layout.addRow("Logs Path:", logs_path_layout)
 
         # Configuration Path
         config_path_layout = QHBoxLayout()
@@ -54,21 +59,57 @@ class ConfigurationDialog(QDialog):
         open_config_button.clicked.connect(self.open_config_path)
         config_path_layout.addWidget(open_config_button)
         self.buttons.append(open_config_button)
-        form_layout.addRow("Configuration Path:", config_path_layout)
+        paths_layout.addRow("Config Path:", config_path_layout)
+        paths_group_box.setLayout(paths_layout)
+        main_layout.addWidget(paths_group_box)
 
-        # UI Style
-        self.style_dropdown = QComboBox()
-        self.style_dropdown.addItems([style.value for style in Style])
-        form_layout.addRow("UI Style:", self.style_dropdown)
+        # Logging Section
+        logging_group_box = QGroupBox("Logging")
+        logging_layout = QFormLayout()
+        logging_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
 
         # Max Log Lines
         self.max_log_lines_spinbox = QSpinBox()
         self.max_log_lines_spinbox.setRange(50, 10000)
         self.max_log_lines_spinbox.setSingleStep(50)
-        form_layout.addRow("Max Log Lines:", self.max_log_lines_spinbox)
+        logging_layout.addRow("Max Log Lines:", self.max_log_lines_spinbox)
+        logging_group_box.setLayout(logging_layout)
+        main_layout.addWidget(logging_group_box)
 
-        # Add form layout to main layout
-        layout.addLayout(form_layout)
+        # UI Section
+        ui_group_box = QGroupBox("User Interface")
+        ui_layout = QFormLayout()
+        ui_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+
+        # UI Style
+        self.style_dropdown = QComboBox()
+        self.style_dropdown.addItems([style.value for style in Style])
+        ui_layout.addRow("UI Style:", self.style_dropdown)
+
+        # Custom Color Section (reorganized into a single horizontal line)
+        custom_color_widgets_layout = QHBoxLayout()
+
+        # Enable Custom Color Checkbox (moved to the beginning)
+        self.enable_custom_color_checkbox = QCheckBox("Enable Custom Primary Color")
+        self.enable_custom_color_checkbox.toggled.connect(self.toggle_custom_color_widgets)
+        custom_color_widgets_layout.addWidget(self.enable_custom_color_checkbox)
+
+        custom_color_widgets_layout.addStretch()  # Spacer to push the color box and button to the right
+
+        self.custom_color_label = QLabel()
+        self.custom_color_label.setFixedSize(80, 26)
+        self.custom_color_label.setAutoFillBackground(True)
+        self.custom_color_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        custom_color_widgets_layout.addWidget(self.custom_color_label)
+
+        self.pick_color_button = QPushButton("Pick Primary Color")
+        self.pick_color_button.clicked.connect(self.pick_color)
+        custom_color_widgets_layout.addWidget(self.pick_color_button)
+        self.buttons.append(self.pick_color_button)
+
+        ui_layout.addRow("Custom Colors:", custom_color_widgets_layout)
+        ui_group_box.setLayout(ui_layout)
+        main_layout.addWidget(ui_group_box)
 
         # Import/Export buttons at bottom-left
         bottom_layout = QHBoxLayout()
@@ -92,9 +133,9 @@ class ConfigurationDialog(QDialog):
         button_box.rejected.connect(self.reject)
         bottom_layout.addWidget(button_box)
 
-        layout.addLayout(bottom_layout)
+        main_layout.addLayout(bottom_layout)
 
-        self.setLayout(layout)
+        self.setLayout(main_layout)  # Changed to main_layout
 
         # Normalize button widths
         self.equalize_button_widths()
@@ -106,6 +147,37 @@ class ConfigurationDialog(QDialog):
         self.config = load_config()
         self.style_dropdown.setCurrentText(self.config.style.capitalize())
         self.max_log_lines_spinbox.setValue(self.config.max_log_lines)
+        self.set_custom_color_display(self.config.custom_color)
+        self.enable_custom_color_checkbox.setChecked(self.config.enable_custom_color)
+        self.toggle_custom_color_widgets(self.config.enable_custom_color)  # Call to set initial state
+
+    def set_custom_color_display(self, hex_color: str):
+        """Sets the background color of the label and updates the internal color."""
+        self.current_custom_color = hex_color
+        palette = self.custom_color_label.palette()
+        palette.setColor(QPalette.ColorRole.Window, QColor(hex_color))
+        self.custom_color_label.setPalette(palette)
+        self.custom_color_label.setText(hex_color)
+        self.custom_color_label.setStyleSheet(f"background-color: {hex_color}; color: {'white' if QColor(hex_color).lightness() < 128 else 'black'};")
+
+    def pick_color(self):
+        """Opens a QColorDialog to pick a custom color."""
+        initial_color = QColor(self.current_custom_color)
+        color = QColorDialog.getColor(initial_color, self, "Select Custom Color")
+        if color.isValid():
+            self.set_custom_color_display(color.name())
+
+    def toggle_custom_color_widgets(self, enabled: bool):
+        """Enables or disables custom color related widgets and updates the color label's appearance."""
+        self.custom_color_label.setEnabled(enabled)
+        self.pick_color_button.setEnabled(enabled)
+
+        if enabled:
+            # If enabled, apply the actual custom color
+            self.set_custom_color_display(self.current_custom_color)
+        else:
+            # If disabled, apply a gray stylesheet to visually indicate it's inactive
+            self.custom_color_label.setStyleSheet("background-color: #E0E0E0; color: #A0A0A0;")
 
     def equalize_button_widths(self):
         max_width = max(button.sizeHint().width() for button in self.buttons)
@@ -146,6 +218,10 @@ class ConfigurationDialog(QDialog):
 
         # Save Max Log Lines
         self.config.max_log_lines = self.max_log_lines_spinbox.value()
+
+        # Save Custom Color
+        self.config.custom_color = self.current_custom_color
+        self.config.enable_custom_color = self.enable_custom_color_checkbox.isChecked()
 
         # Save the config
         save_config(self.config)
@@ -195,8 +271,8 @@ class ConfigurationDialog(QDialog):
             try:
                 # Create a new default config instance
                 default_config = Config()
-                save_config(default_config)  # Save the default config
-                self.config = default_config  # Update internal config reference
+                save_config(default_config)
+                self.config = default_config
 
                 # Apply the default style
                 apply_style(self.config.style)

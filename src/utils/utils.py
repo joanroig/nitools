@@ -1,4 +1,4 @@
-import os  # Added import
+import os
 import re
 import uuid
 from datetime import datetime
@@ -6,6 +6,7 @@ from datetime import datetime
 import qdarktheme
 
 from utils.bundle_utils import get_bundled_path
+from utils.config_utils import load_config
 from utils.enums import Style
 
 
@@ -49,9 +50,17 @@ def apply_style(style):
         with open(css_file_path, 'r') as f:
             additional_qss = f.read()
 
+    config = load_config()
+    custom_color = config.custom_color
+    enable_custom_color = config.enable_custom_color
+
+    custom_colors_dict = {}
+    if enable_custom_color:
+        custom_colors_dict = {"primary": custom_color}
+
     if style == Style.AUTO:
-        qdarktheme.setup_theme("auto", additional_qss=additional_qss)
+        qdarktheme.setup_theme("auto", additional_qss=additional_qss, custom_colors=custom_colors_dict)
     elif style == Style.LIGHT:
-        qdarktheme.setup_theme("light", additional_qss=additional_qss)
+        qdarktheme.setup_theme("light", additional_qss=additional_qss, custom_colors=custom_colors_dict)
     elif style == Style.DARK:
-        qdarktheme.setup_theme("dark", additional_qss=additional_qss)
+        qdarktheme.setup_theme("dark", additional_qss=additional_qss, custom_colors=custom_colors_dict)
