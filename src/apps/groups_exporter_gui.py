@@ -31,7 +31,7 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         self.setMinimumHeight(600)  # Add minimum height
         self.setWindowFlags(self.windowFlags() | QtCore.Qt.WindowType.WindowMaximizeButtonHint)  # Allow maximizing
         self.config: Config = config_utils.load_config()
-        apply_style(self.config.style)  # Apply styke for standalone execution
+        apply_style(self.config.style)  # Apply style for standalone execution
         self.worker = None
         self.progress_dialog = None
         self.cancelled = False
@@ -289,9 +289,6 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         if self.worker and self.worker.isRunning():
             self.worker.request_cancel()  # Request cancellation
             self.cancelled = True
-            # Manually call finished handler to update UI state
-            self.on_subprocess_finished(-1)
-            # Clear the worker reference
             self.worker = None
         else:
             self.run_build_btn.setEnabled(True)
@@ -454,18 +451,12 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         )
         self.log_output.append(f"Starting JSON build process for input folder: {input_folder}")
         self.show_loading('Processing groups...')
-        self.run_worker(builder.run, {}, logger_name="GroupsBuilder", on_finish=self.on_build_json_finished)
+        self.run_worker(builder.run, {}, logger_name="GroupsBuilder")
 
         json_path = os.path.join(output_folder, 'all_groups.json')
         self.json_path.setText(json_path)
         self.proc_output_folder.setText(os.path.abspath('./out/groups'))
         self.last_built_json_path = json_path
-
-    def on_build_json_finished(self, code):
-        self.on_subprocess_finished(code)
-        if code == 0:
-            QtWidgets.QApplication.instance().beep()
-            QMessageBox.information(self, "Build Complete", "JSON file has been successfully built!")
 
     def run_process_py(self):
         json_path = self.json_path.text().strip()
@@ -518,86 +509,89 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         )
         self.log_output.append(f"Starting group export process for JSON: {json_path}")
         self.show_loading('Exporting groups...')
-        self.run_worker(processor.run, {}, logger_name="GroupsProcessor", on_finish=self.on_process_py_finished)
+        self.run_worker(processor.run, {}, logger_name="GroupsProcessor")
 
-    def on_process_py_finished(self, code):
-        QtWidgets.QApplication.instance().beep()
-        self.on_subprocess_finished(code)
-        show_export_complete_dialog(
-            parent=self,
-            output_folder=self.proc_output_folder.text().strip(),
-            log_content=self.log_output.toPlainText(),
-            title="Export Complete",
-            message="Groups export process finished."
-        )
-
-    def run_worker(self, target_callable, kwargs, logger_name=None, on_finish=None):
+    def run_worker(self, target_callable, kwargs, logger_name=None):
         self.run_build_btn.setEnabled(False)
         self.run_process_btn.setEnabled(False)
         self.has_output = False
         self.worker = WorkerThread(target_callable, kwargs, logger_name)
         self.worker.output_signal.connect(self.on_worker_output)
-        if on_finish:
-            self.worker.finished_signal.connect(on_finish)
-        else:
-            self.worker.finished_signal.connect(self.on_subprocess_finished)
+        self.worker.finished_signal.connect(self.on_subprocess_finished)
         self.worker.start()
 
-    def on_subprocess_finished(self, code):
-        if self.cancelled:
-            self.log_output.append('Operation cancelled by user.\n')
-        elif code == 0 and self.has_output:  # Only switch if successful AND there was output
-            self.log_output.append('Done\n')
-            # Check if the process was 'build_groups_json.py' and if there were any groups processed
-            if self.tabs.currentIndex() == 0 and self.last_built_json_path and os.path.exists(self.last_built_json_path):
-                try:
-                    with open(self.last_built_json_path, 'r') as f:
-                        data = json.load(f)
-                        if isinstance(data, list) and len(data) == 0:
-                            self.log_output.append('0 groups processed. Not switching tabs.\n')
-                            error_dialog = ErrorDialog(
-                                parent=self,
-                                title="No Groups Processed",
-                                message="No groups were found or processed. Please check your input folder and settings.",
-                                detailed_text="The build process completed successfully, but the resulting JSON file indicates that no groups were processed. This might be due to incorrect input folder, no .mxgrp files found, or filters preventing any groups from being included.",
-                                icon=QMessageBox.Icon.Information
-                            )
-                            error_dialog.exec()
-                            # Do not switch tabs if 0 groups were processed
-                        else:
+    def on_subprocess_finished(self, code: int):
+        # Hide the loading and make a sound
+        self.hide_loading()
+        QtWidgets.QApplication.instance().beep()
+
+        # Determine current tab: 0 = Process, 1 = Export
+        is_process_tab = (self.tabs.currentIndex() == 0)
+        context = "Process" if is_process_tab else "Export"
+
+        # Default log append
+        self.log_output.append(f"{context} finished with code {code}\n")
+
+        # --- Handle Cancel ---
+        if self.cancelled or code == -1:
+            self.log_output.append(f"{context} cancelled by user.\n")
+            QMessageBox.information(self, f"{context} Cancelled", f"The {context.lower()} was cancelled.")
+
+        # --- Handle Success ---
+        elif code == 0:
+            if not self.has_output:
+                # Success but no output
+                self.log_output.append(f"{context} finished with no output.\n")
+                QMessageBox.warning(
+                    self,
+                    f"{context} Empty",
+                    f"The {context.lower()} finished successfully but produced no output."
+                )
+            else:
+                self.log_output.append("Done\n")
+
+                if is_process_tab:
+                    # Check if built JSON has groups
+                    if self.last_built_json_path and os.path.exists(self.last_built_json_path):
+                        try:
+                            with open(self.last_built_json_path, 'r') as f:
+                                data = json.load(f)
+                                if isinstance(data, list) and len(data) == 0:
+                                    # Empty JSON result
+                                    self.log_output.append("0 groups processed.\n")
+                                    QMessageBox.warning(self, "No Groups Processed", "The process completed but no groups were found or processed.")
+                                else:
+                                    # Success with groups
+                                    self.tabs.setCurrentIndex(1)
+                                    QMessageBox.information(self, "Process Complete", "Groups JSON file has been successfully built!")
+                        except Exception as e:
+                            # Unexpected JSON read error → still treat as success
+                            self.log_output.append(f"Warning: Could not verify JSON file: {e}\n")
                             self.tabs.setCurrentIndex(1)
-                except json.JSONDecodeError:
-                    self.log_output.append('Error reading JSON file. Switching tabs anyway.\n')
-                    self.tabs.setCurrentIndex(1)
-                except Exception as e:
-                    self.log_output.append(f'An unexpected error occurred: {e}. Switching tabs anyway.\n')
-                    self.tabs.setCurrentIndex(1)
-            elif self.has_output:
-                # For other processes, if successful and has output, switch tabs
-                if self.tabs.currentIndex() == 0:
-                    self.tabs.setCurrentIndex(1)
-        elif code == 0 and not self.has_output:  # If successful but no output, just say Done
-            self.log_output.append('Done\n')
+                            QMessageBox.information(self, "Process Complete", "Groups JSON file built, but verification failed. Proceed with caution.")
+                    else:
+                        # No JSON path set → treat as empty
+                        QMessageBox.warning(self, "No Output JSON", "The process finished but no JSON file was found.")
+
+                else:  # Export tab
+                    show_export_complete_dialog(parent=self, output_folder=self.proc_output_folder.text().strip(), log_content=self.log_output.toPlainText(),
+                                                title="Export Complete", message="Groups export process finished successfully.")
+
+        # --- Handle Failure ---
         else:
-            error_message = f'Process finished with exit code {code}\n'
-            self.log_output.append(error_message)
+            error_message = f"{context} failed with exit code {code}"
+            self.log_output.append(error_message + "\n")
 
             full_log = self.log_output.toPlainText()
             log_lines = full_log.splitlines()
-            # Take the last 20 lines as detailed error, or fewer if the log is shorter
             detailed_error_text = "\n".join(log_lines[-20:])
 
-            error_dialog = ErrorDialog(
-                parent=self,
-                title="Subprocess Error",
-                message=f"A script finished with an error (exit code {code}). Please check the detailed log for more information.",
-                detailed_text=detailed_error_text,
-                icon=QMessageBox.Icon.Critical
-            )
-            error_dialog.exec()
+            ErrorDialog(parent=self, title=f"{context} Failed", message=f"The {context.lower()} failed (exit code {code}). See details below.", detailed_text=detailed_error_text, icon=QMessageBox.Icon.Critical).exec()
+
+        # Reset state
         self.run_build_btn.setEnabled(True)
         self.run_process_btn.setEnabled(True)
-        self.hide_loading()
+        self.cancelled = False
 
 
 if __name__ == '__main__':
