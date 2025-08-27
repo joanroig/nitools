@@ -18,7 +18,7 @@ class BottomBanner(QtWidgets.QWidget):
 
         # Help button (at the left)
         self.help_button = QtWidgets.QPushButton()
-        self.help_button.setIcon(QtGui.QIcon(get_bundled_path("img/icons/question.png")))
+        self.help_button.setIcon(QtGui.QIcon(get_bundled_path("resources/icons/question.png")))
         self.help_button.clicked.connect(self._show_help_popup)
         self.help_button.setToolTip("Help")
         layout.addWidget(self.help_button)
@@ -35,7 +35,7 @@ class BottomBanner(QtWidgets.QWidget):
 
         # Terminal button (at the right)
         self.show_terminal_button = QtWidgets.QPushButton()
-        self.show_terminal_button.setIcon(QtGui.QIcon(get_bundled_path("img/icons/terminal.png")))
+        self.show_terminal_button.setIcon(QtGui.QIcon(get_bundled_path("resources/icons/terminal.png")))
         self.show_terminal_button.setCheckable(True)
         self.show_terminal_button.setChecked(self.initial_terminal_state)
         self.show_terminal_button.toggled.connect(self.terminal_toggled.emit)

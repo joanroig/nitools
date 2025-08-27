@@ -11,6 +11,7 @@ from components.matrix_editor import MatrixEditor
 from components.pad_filter_editor import PadFilterEditor
 from components.resizable_log_splitter import ResizableLogSplitter
 from dialogs.error_dialog import ErrorDialog
+from dialogs.export_complete_dialog import show_export_complete_dialog
 from models.config import Config
 from processors.groups.build_groups_json import GroupsJsonBuilder
 from processors.groups.process_groups_json import GroupsProcessor
@@ -24,9 +25,11 @@ class GroupsExporterGUI(QtWidgets.QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowIcon(QtGui.QIcon(get_bundled_path("img/logos/groups.png")))
+        self.setWindowIcon(QtGui.QIcon(get_bundled_path("resources/icons/groups.png")))
         self.setWindowTitle('NITools - Groups Exporter')
         self.setMinimumWidth(800)
+        self.setMinimumHeight(600)  # Add minimum height
+        self.setWindowFlags(self.windowFlags() | QtCore.Qt.WindowType.WindowMaximizeButtonHint)  # Allow maximizing
         self.config: Config = config_utils.load_config()
         apply_style(self.config.style)  # Apply styke for standalone execution
         self.worker = None
@@ -36,12 +39,14 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         self.last_built_json_path = None
         self.init_ui()
         self.load_config_to_ui()
-        default_json = os.path.abspath('./out/all_groups.json')
-        # Check if json_path is empty in config, then set default
-        if os.path.isfile(default_json) and not self.config.groups_exporter.json_path:
-            self.json_path.setText(default_json)
-            self.config.groups_exporter.json_path = default_json
-            config_utils.save_config(self.config)
+
+        # Restore window size if saved
+        if self.config.groups_exporter.width > 0 and self.config.groups_exporter.height > 0:
+            self.resize(self.config.groups_exporter.width, self.config.groups_exporter.height)
+
+        # Switch to export tab if json_path is already set
+        if self.json_path.text().strip() and os.path.isfile(self.json_path.text().strip()):
+            self.tabs.setCurrentIndex(1)
 
     def init_ui(self):
         main_layout = QtWidgets.QVBoxLayout()
@@ -91,6 +96,7 @@ class GroupsExporterGUI(QtWidgets.QDialog):
 
         self.run_build_btn = QtWidgets.QPushButton('Process Groups')
         self.run_build_btn.clicked.connect(self.run_build_json)
+        self.run_build_btn.setProperty("class", "accent")
         process_layout.addWidget(self.run_build_btn)
 
         self.tab_process.setLayout(process_layout)
@@ -109,7 +115,7 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         scrollable_content_export = QtWidgets.QWidget()
         scrollable_content_export_layout = QtWidgets.QVBoxLayout()
 
-        process_form_layout = QtWidgets.QFormLayout()
+        export_form_layout = QtWidgets.QFormLayout()
         self.json_path = QtWidgets.QLineEdit()
         self.json_path.setToolTip('Select the JSON file generated in Step 1 (e.g., all_groups.json).')
         self.json_path_btn = QtWidgets.QPushButton('Choose')
@@ -118,7 +124,7 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         json_path_layout = QtWidgets.QHBoxLayout()
         json_path_layout.addWidget(self.json_path)
         json_path_layout.addWidget(self.json_path_btn)
-        process_form_layout.addRow('JSON file:', json_path_layout)
+        export_form_layout.addRow('JSON file:', json_path_layout)
         self.proc_output_folder = QtWidgets.QLineEdit()
         self.proc_output_folder.setToolTip('Select the folder where the processed group samples will be exported.')
         self.proc_output_folder_btn = QtWidgets.QPushButton('Choose')
@@ -127,32 +133,35 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         proc_output_folder_layout = QtWidgets.QHBoxLayout()
         proc_output_folder_layout.addWidget(self.proc_output_folder)
         proc_output_folder_layout.addWidget(self.proc_output_folder_btn)
-        process_form_layout.addRow('Output folder:', proc_output_folder_layout)
+        export_form_layout.addRow('Output folder:', proc_output_folder_layout)
 
         # --- Options group ---
         options_group = QtWidgets.QGroupBox('Options')
         options_layout = QtWidgets.QVBoxLayout()
-        self.include_preview = QtWidgets.QCheckBox('Include preview samples')
-        self.include_preview.setToolTip('If checked, a short preview sample will be generated for each group.')
+        self.skip_existing = QtWidgets.QCheckBox('Skip already processed')
+        self.skip_existing.setToolTip('If checked, samples that already exist in the output folder will be skipped.')
         self.trim_silence = QtWidgets.QCheckBox('Trim silence')
         self.trim_silence.setToolTip('If checked, leading and trailing silence will be removed from samples.')
         self.normalize = QtWidgets.QCheckBox('Normalize')
         self.normalize.setToolTip('If checked, audio samples will be normalized to a standard loudness level.')
+        self.include_preview = QtWidgets.QCheckBox('Include preview samples')
+        self.include_preview.setToolTip('If checked, a short preview sample will be generated for each group.')
         self.sample_rate = QtWidgets.QLineEdit()
         self.sample_rate.setPlaceholderText('Sample rate (e.g. 48000)')
         self.sample_rate.setToolTip('Set the sample rate for exported audio (e.g., 44100, 48000). Leave blank for original.')
         self.bit_depth = QtWidgets.QLineEdit()
         self.bit_depth.setPlaceholderText('Bit depth (e.g. 16)')
         self.bit_depth.setToolTip('Set the bit depth for exported audio (e.g., 16, 24). Leave blank for original.')
-        options_layout.addWidget(self.include_preview)
+        options_layout.addWidget(self.skip_existing)
         options_layout.addWidget(self.trim_silence)
         options_layout.addWidget(self.normalize)
+        options_layout.addWidget(self.include_preview)
         options_layout.addWidget(QtWidgets.QLabel('Sample rate:'))
         options_layout.addWidget(self.sample_rate)
         options_layout.addWidget(QtWidgets.QLabel('Bit depth:'))
         options_layout.addWidget(self.bit_depth)
         options_group.setLayout(options_layout)
-        process_form_layout.addRow(options_group)
+        export_form_layout.addRow(options_group)
 
         # --- Pad Reorder Matrix group ---
         matrix_group = QtWidgets.QGroupBox('Pad Reorder Matrix (4x4)')
@@ -171,7 +180,7 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         matrix_layout.addWidget(self.matrix_toggle_btn)
         matrix_layout.addWidget(self.matrix_editor)
         matrix_group.setLayout(matrix_layout)
-        process_form_layout.addRow(matrix_group)
+        export_form_layout.addRow(matrix_group)
 
         # --- Pad Filter group ---
         pad_filter_group = QtWidgets.QGroupBox('Pad Filter Keywords')
@@ -190,7 +199,7 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         pad_filter_layout.addWidget(self.pad_filter_toggle_btn)
         pad_filter_layout.addWidget(self.pad_filter_editor)
         pad_filter_group.setLayout(pad_filter_layout)
-        process_form_layout.addRow(pad_filter_group)
+        export_form_layout.addRow(pad_filter_group)
 
         # --- Fill blanks group ---
         fill_group = QtWidgets.QGroupBox('Fill Blank Pads')
@@ -210,9 +219,9 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         fill_layout.addWidget(QtWidgets.QLabel('Fill blanks path:'))
         fill_layout.addLayout(fill_blanks_path_layout)
         fill_group.setLayout(fill_layout)
-        process_form_layout.addRow(fill_group)
+        export_form_layout.addRow(fill_group)
 
-        scrollable_content_export_layout.addLayout(process_form_layout)  # Add the form layout directly
+        scrollable_content_export_layout.addLayout(export_form_layout)
 
         scrollable_content_export.setLayout(scrollable_content_export_layout)
         scroll_area_export = QtWidgets.QScrollArea()
@@ -222,6 +231,7 @@ class GroupsExporterGUI(QtWidgets.QDialog):
 
         self.run_process_btn = QtWidgets.QPushButton('Export Groups')
         self.run_process_btn.clicked.connect(self.run_process_py)
+        self.run_process_btn.setProperty("class", "accent")
         export_layout.addWidget(self.run_process_btn)
         self.tab_export.setLayout(export_layout)
         self.tabs.addTab(self.tab_export, 'Export Groups')
@@ -248,6 +258,13 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         self.filter_pads.stateChanged.connect(self._update_pad_filter_editor_state)
         self.on_json_path_changed()  # Call once to set initial state based on json_path
         self.toggle_terminal_visibility(self.config.groups_exporter.show_terminal)
+
+    def closeEvent(self, event):
+        # Save current window size to config
+        self.config.groups_exporter.width = self.width()
+        self.config.groups_exporter.height = self.height()
+        config_utils.save_config(self.config)
+        super().closeEvent(event)
 
     def toggle_terminal_visibility(self, state):
         self.log_output.setVisible(state)
@@ -301,6 +318,7 @@ class GroupsExporterGUI(QtWidgets.QDialog):
             (self.include_preview, 'include_preview'),
             (self.fill_blanks, 'fill_blanks'),
             (self.fill_blanks_path, 'fill_blanks_path'),
+            (self.skip_existing, 'skip_existing'),
             (self.bottom_banner.show_terminal_button, 'show_terminal'),
             (self.enable_matrix, 'enable_matrix'),
             (self.filter_pads, 'filter_pads'),
@@ -340,6 +358,7 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         self.normalize.setChecked(c.normalize)
         self.sample_rate.setText(c.sample_rate)
         self.bit_depth.setText(c.bit_depth)
+        self.skip_existing.setChecked(c.skip_existing)
         self.enable_matrix.setChecked(c.enable_matrix)
         self.matrix_editor.set_matrix(self.config.groups_exporter.matrix_config)
         self.filter_pads.setChecked(c.filter_pads)
@@ -370,7 +389,8 @@ class GroupsExporterGUI(QtWidgets.QDialog):
             self.fill_blanks, self.fill_blanks_path, self.fill_blanks_path_btn,
             self.run_process_btn,
             self.sample_rate, self.bit_depth,
-            self.include_preview
+            self.include_preview,
+            self.skip_existing
         ]
         for w in widgets:
             w.setEnabled(enabled)
@@ -434,12 +454,18 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         )
         self.log_output.append(f"Starting JSON build process for input folder: {input_folder}")
         self.show_loading('Processing groups...')
-        self.run_worker(builder.run, {}, logger_name="GroupsBuilder")
+        self.run_worker(builder.run, {}, logger_name="GroupsBuilder", on_finish=self.on_build_json_finished)
 
         json_path = os.path.join(output_folder, 'all_groups.json')
         self.json_path.setText(json_path)
         self.proc_output_folder.setText(os.path.abspath('./out/groups'))
         self.last_built_json_path = json_path
+
+    def on_build_json_finished(self, code):
+        self.on_subprocess_finished(code)
+        if code == 0:
+            QtWidgets.QApplication.instance().beep()
+            QMessageBox.information(self, "Build Complete", "JSON file has been successfully built!")
 
     def run_process_py(self):
         json_path = self.json_path.text().strip()
@@ -473,7 +499,7 @@ class GroupsExporterGUI(QtWidgets.QDialog):
             if self.config.groups_exporter.fill_blanks_path:
                 fill_blanks_path_val = self.config.groups_exporter.fill_blanks_path
             else:
-                fill_blanks_path_val = get_bundled_path("./assets/.wav")
+                fill_blanks_path_val = get_bundled_path("resources/audio/.wav")
 
         processor = GroupsProcessor(
             json_path=json_path,
@@ -487,19 +513,34 @@ class GroupsExporterGUI(QtWidgets.QDialog):
             pad_filter=self.pad_filter_editor.get_pad_filter() if self.config.groups_exporter.filter_pads else None,
             fill_blanks=fill_blanks_path_val,
             enable_matrix=self.config.groups_exporter.enable_matrix,
-            include_preview=self.config.groups_exporter.include_preview
+            include_preview=self.config.groups_exporter.include_preview,
+            skip_existing=self.config.groups_exporter.skip_existing
         )
         self.log_output.append(f"Starting group export process for JSON: {json_path}")
         self.show_loading('Exporting groups...')
-        self.run_worker(processor.run, {}, logger_name="GroupsProcessor")
+        self.run_worker(processor.run, {}, logger_name="GroupsProcessor", on_finish=self.on_process_py_finished)
 
-    def run_worker(self, target_callable, kwargs, logger_name=None):
+    def on_process_py_finished(self, code):
+        QtWidgets.QApplication.instance().beep()
+        self.on_subprocess_finished(code)
+        show_export_complete_dialog(
+            parent=self,
+            output_folder=self.proc_output_folder.text().strip(),
+            log_content=self.log_output.toPlainText(),
+            title="Export Complete",
+            message="Groups export process finished."
+        )
+
+    def run_worker(self, target_callable, kwargs, logger_name=None, on_finish=None):
         self.run_build_btn.setEnabled(False)
         self.run_process_btn.setEnabled(False)
         self.has_output = False
         self.worker = WorkerThread(target_callable, kwargs, logger_name)
         self.worker.output_signal.connect(self.on_worker_output)
-        self.worker.finished_signal.connect(self.on_subprocess_finished)
+        if on_finish:
+            self.worker.finished_signal.connect(on_finish)
+        else:
+            self.worker.finished_signal.connect(self.on_subprocess_finished)
         self.worker.start()
 
     def on_subprocess_finished(self, code):

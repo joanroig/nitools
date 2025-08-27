@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://github.com/joanroig/nitools">
-      <img alt="NITools" src="img/logos/nitools.png" width="140px">
+      <img alt="NITools" src="resources/icons/nitools.png" width="140px">
   </a>
 </p>
 
@@ -23,18 +23,18 @@
   <table align="center" border="0" cellspacing="0" cellpadding="0">
     <tr>
       <td valign="middle" style="padding-right: 20px;">
-        <a href="http://instagram.com/moaibeats"><img src="img/icons/moai.png" alt="Moai Beats" width="100"></a>
+        <a href="http://instagram.com/moaibeats"><img src="resources/icons/moai.png" alt="Moai Beats" width="100"></a>
       </td>
       <td valign="middle" align="left">
         <p align="center"><b>Created by Moai Beats</b></br>Follow and stream to support me •ᴗ•</p>
         <p align="center">
-          <a href="https://open.spotify.com/artist/5Zt96vfBQXmUB3fs3Qkm5q"><img src="img/icons/spotify.png" alt="Spotify" width="40"></a>
+          <a href="https://open.spotify.com/artist/5Zt96vfBQXmUB3fs3Qkm5q"><img src="resources/icons/spotify.png" alt="Spotify" width="40"></a>
           &nbsp;&nbsp;
-          <a href="https://music.apple.com/es/artist/moai-beats/1466043534"><img src="img/icons/applemusic.png" alt="Apple Music" width="40"></a>
+          <a href="https://music.apple.com/es/artist/moai-beats/1466043534"><img src="resources/icons/applemusic.png" alt="Apple Music" width="40"></a>
           &nbsp;&nbsp;
-          <a href="http://youtube.com/moaibeats?sub_confirmation=1"><img src="img/icons/youtube.png" alt="YouTube" width="40"></a>
+          <a href="http://youtube.com/moaibeats?sub_confirmation=1"><img src="resources/icons/youtube.png" alt="YouTube" width="40"></a>
           &nbsp;&nbsp;
-          <a href="https://moaibeats.bandcamp.com"><img src="img/icons/bandcamp.png" alt="Bandcamp" width="40"></a>
+          <a href="https://moaibeats.bandcamp.com"><img src="resources/icons/bandcamp.png" alt="Bandcamp" width="40"></a>
         </p>
       </td>
     </tr>
@@ -63,7 +63,7 @@ The initial idea was to export Maschine groups to use them in the Roland SP 404 
 
 ## Modules
 
-### <img alt="Groups Exporter" src="img/logos/groups.png" width="16px"> **Groups Exporter (Maschine)**
+### <img alt="Groups Exporter" src="resources/icons/groups.png" width="16px"> **Groups Exporter (Maschine)**
 
 - Scans a folder for all Maschine group files and parses sample data.
 - Configurable normalization, sample rate, bit depth, and silence trimming.
@@ -72,12 +72,12 @@ The initial idea was to export Maschine groups to use them in the Roland SP 404 
 - Option to fill blank pads with a default sample.
 - Option to include group preview samples.
 
-### <img alt="Groups Exporter" src="img/logos/previews.png" width="16px"> **Previews Exporter (NKS)**
+### <img alt="Groups Exporter" src="resources/icons/previews.png" width="16px"> **Previews Exporter (NKS)**
 
 - Converts NKS `.previews` to standardized WAV files for easy browsing outside NI software.
 - Configurable normalization, sample rate, bit depth, and silence trimming.
 
-### <img alt="Kits Exporter" src="img/logos/kits.png" width="16px"> **Previews Exporter (NKS)**
+### <img alt="Kits Exporter" src="resources/icons/kits.png" width="16px"> **Previews Exporter (NKS)**
 
 - Planned tool for exporting Battery kits, similar in functionality to the Maschine Groups Exporter.
 
@@ -198,7 +198,7 @@ Options:
 - `--filter_pads` → Filter groups: pad 1 contains keywords for pad 1, pad 2 for pad 2, pad 3 for pad 3 (case-insensitive)
 - `--filter_pads_json <path>` → Optional custom pad filter keywords JSON file
 - `--fill_blanks` → Fill empty pads
-- `--fill_blanks_path <path>` → Fill blank pads with a specified WAV file, or pick a random file from a folder of WAVs (default is a silence sample file: `./assets/.wav`)
+- `--fill_blanks_path <path>` → Fill blank pads with a specified WAV file, or pick a random file from a folder of WAVs (default is a silence sample file: `resources/audio/.wav`)
 - `--sample_rate <rate>` → Convert all samples to this sample rate (e.g., `48000`)
 - `--bit_depth <depth>` → Convert all samples to this bit depth (e.g., `16`)
 - `--include_preview` → Include preview samples from groups .previews
@@ -206,7 +206,7 @@ Options:
 **Example:**
 
 ```powershell
-python src/processors/groups/process_groups_json.py ./out/all_groups.json ./out/groups/ --trim_silence --normalize --enable_matrix --filter_pads --fill_blanks --fill_blanks_path ./assets/.wav --sample_rate 44100 --bit_depth 24 --include_preview
+python src/processors/groups/process_groups_json.py ./out/all_groups.json ./out/groups/ --trim_silence --normalize --enable_matrix --filter_pads --fill_blanks --fill_blanks_path resources/audio/.wav --sample_rate 44100 --bit_depth 24 --include_preview
 ```
 
 ##### 3. `build_previews_json.py`

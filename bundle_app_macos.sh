@@ -17,9 +17,8 @@ VERSION=$(python -c "from src.utils.version import APP_VERSION; print(APP_VERSIO
 python -m PyInstaller \
     --noconfirm \
     --windowed \
-    --add-data "./img:img" \
-    --add-data "./assets/.wav:assets/.wav" \
-    --icon=img/app.icns \
+    --add-data "resources:resources" \
+    --icon=icons/app.icns \
     ./src/launcher.py \
     -n "NITools" \
     --distpath "$distAppPath" \

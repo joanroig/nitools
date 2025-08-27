@@ -1,0 +1,12 @@
+QPushButton[class="accent"] {
+  background-color: #4caf50;
+  color: white;
+  padding: 10px 20px;
+  font-weight: bold;
+}
+QPushButton[class="accent"]:hover {
+  background-color: #45a049;
+}
+QPushButton[class="accent"]:pressed {
+  background-color: #3e8e41;
+}

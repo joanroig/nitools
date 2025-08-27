@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import QMessageBox, QPushButton
 
 from utils.bundle_utils import get_bundled_path
 from utils.constants import LOGS_PATH
+from utils.dialog_utils import open_path
 
 
 class ErrorDialog(QMessageBox):
@@ -27,7 +28,7 @@ class ErrorDialog(QMessageBox):
             self.setTextFormat(Qt.TextFormat.PlainText)
 
         # Set window icon for the dialog itself
-        app_icon_path = get_bundled_path('img/logos/nitools.png')
+        app_icon_path = get_bundled_path('resources/icons/nitools.png')
         if app_icon_path:
             self.setWindowIcon(QIcon(app_icon_path))
 
@@ -44,7 +45,7 @@ class ErrorDialog(QMessageBox):
             pass
 
         # Connect custom slot
-        open_button.clicked.connect(lambda: self._open_path(path))
+        open_button.clicked.connect(lambda: open_path(path))
 
     def add_open_log_button(self):
         log_file_path = os.path.join(LOGS_PATH, 'NITools.log')
@@ -59,22 +60,4 @@ class ErrorDialog(QMessageBox):
                 pass
 
             # Connect custom slot
-            open_log_button.clicked.connect(lambda: self._open_path(log_file_path))
-
-    def _open_path(self, path):
-        """
-        Internal helper to open a given path using the appropriate system command.
-        """
-        if not path:
-            return
-        path = path.strip()
-        try:
-            if platform.system() == "Windows":
-                subprocess.Popen(["explorer", path], shell=True)
-            elif platform.system() == "Darwin":
-                subprocess.Popen(["open", path])
-            else:
-                # Fallback for Linux/other Unix-like systems
-                subprocess.Popen(["xdg-open", path])
-        except Exception as e:
-            print(f"Failed to open path: {path}. Error: {e}")
+            open_log_button.clicked.connect(lambda: open_path(log_file_path))

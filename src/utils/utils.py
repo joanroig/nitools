@@ -1,9 +1,12 @@
+import os  # Added import
 import re
 import uuid
 from datetime import datetime
 
-from utils.enums import Style
 import qdarktheme
+
+from utils.bundle_utils import get_bundled_path
+from utils.enums import Style
 
 
 def unique_id():
@@ -37,10 +40,18 @@ def set_font_properties(widget, point_size=None, bold=None, italic=None):
         font.setItalic(italic)
     widget.setFont(font)
 
+
 def apply_style(style):
+    css_file_path = get_bundled_path('resources/style.css')
+
+    additional_qss = ""
+    if os.path.exists(css_file_path):
+        with open(css_file_path, 'r') as f:
+            additional_qss = f.read()
+
     if style == Style.AUTO:
-        qdarktheme.setup_theme("auto")
+        qdarktheme.setup_theme("auto", additional_qss=additional_qss)
     elif style == Style.LIGHT:
-        qdarktheme.setup_theme("light")
+        qdarktheme.setup_theme("light", additional_qss=additional_qss)
     elif style == Style.DARK:
-        qdarktheme.setup_theme("dark")
+        qdarktheme.setup_theme("dark", additional_qss=additional_qss)

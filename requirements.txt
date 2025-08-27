@@ -9,3 +9,4 @@ pyqtdarktheme-fork==2.3.4
 soundfile==0.13.1
 numpy==2.2.6
 resampy==0.4.3
+concurrent-log-handler==0.9.28

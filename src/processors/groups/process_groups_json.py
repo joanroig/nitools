@@ -46,7 +46,8 @@ class GroupsProcessor:
         sample_rate=None,
         bit_depth=None,
         enable_matrix=True,
-        include_preview=False
+        include_preview=False,
+        skip_existing=False
     ):
         self.json_path = json_path
         self.output_folder = output_folder
@@ -60,6 +61,7 @@ class GroupsProcessor:
         self.bit_depth = bit_depth
         self.enable_matrix = enable_matrix
         self.include_preview = include_preview
+        self.skip_existing = skip_existing
 
     def run(self, worker_instance=None):  # Accept worker_instance
         try:
@@ -132,6 +134,10 @@ class GroupsProcessor:
                         target_filename = suffix + filename
                         target_path = os.path.join(group_folder, target_filename)
 
+                        if self.skip_existing and os.path.exists(target_path):
+                            logger.info(f"Skipping existing file: {target_path}")
+                            continue
+
                         try:
                             trim_and_normalize_wav(source_path, target_path, self.trim_silence, self.normalize, self.sample_rate, self.bit_depth)
                         except Exception as e:
@@ -154,6 +160,9 @@ class GroupsProcessor:
                             if source_path and os.path.isfile(source_path):
                                 target_filename = suffix + os.path.basename(source_path)
                                 target_path = os.path.join(group_folder, target_filename)
+                                if self.skip_existing and os.path.exists(target_path):
+                                    logger.info(f"Skipping existing file: {target_path}")
+                                    continue
                                 try:
                                     trim_and_normalize_wav(source_path, target_path, self.trim_silence, self.normalize, self.sample_rate, self.bit_depth)
                                 except Exception as e:
@@ -167,6 +176,9 @@ class GroupsProcessor:
                     preview_file = os.path.join(preview_dir, group_name + ".mxgrp.ogg")
                     if os.path.isfile(preview_file):
                         preview_wav = os.path.join(group_folder, "Preview - " + group_name + ".wav")
+                        if self.skip_existing and os.path.exists(preview_wav):
+                            logger.info(f"Skipping existing preview file: {preview_wav}")
+                            continue
                         try:
                             trim_and_normalize_wav(preview_file, preview_wav, self.trim_silence, self.normalize, self.sample_rate, self.bit_depth)
                             logger.info(f"Included preview sample: {preview_wav}")
@@ -191,7 +203,8 @@ def main(
     sample_rate: int,
     bit_depth: int,
     enable_matrix: bool,
-    include_preview: bool
+    include_preview: bool,
+    skip_existing: bool
 ):
     # Matrix
     if matrix_json:
@@ -225,7 +238,8 @@ def main(
         sample_rate=sample_rate,
         bit_depth=bit_depth,
         enable_matrix=enable_matrix,
-        include_preview=include_preview
+        include_preview=include_preview,
+        skip_existing=skip_existing
     )
     sys.exit(processor.run())
 
@@ -240,11 +254,12 @@ if __name__ == "__main__":
     parser.add_argument("--filter_pads", action='store_true', help="Filter groups: pad 1 contains keywords for pad 1, pad 2 for pad 2, pad 3 for pad 3 (case-insensitive)")
     parser.add_argument("--filter_pads_json", help="Optional custom pad filter keywords JSON file")
     parser.add_argument("--fill_blanks", action='store_true', help="Fill blank pads")
-    parser.add_argument("--fill_blanks_path", help="Fill blank pads with file or folder of wavs (default: ./assets/.wav)", default="./assets/.wav")
+    parser.add_argument("--fill_blanks_path", help="Fill blank pads with file or folder of wavs (default: resources/audio/.wav)", default="resources/audio/.wav")
     parser.add_argument("--sample_rate", type=int, help="Convert all samples to this sample rate (e.g. 48000)")
     parser.add_argument("--bit_depth", type=int, help="Convert all samples to this bit depth (e.g. 16)")
     parser.add_argument("--enable_matrix", action='store_true', help="Enable pad matrix reorder")
     parser.add_argument("--include_preview", action='store_true', help="Include preview samples from groups.previews")
+    parser.add_argument("--skip_existing", action='store_true', help="Skip processing if output file already exists")
 
     args = parser.parse_args()
 
@@ -299,7 +314,8 @@ if __name__ == "__main__":
             sample_rate=args.sample_rate,
             bit_depth=args.bit_depth,
             enable_matrix=args.enable_matrix,
-            include_preview=args.include_preview
+            include_preview=args.include_preview,
+            skip_existing=args.skip_existing
         )
     except SystemExit as e:
         sys.exit(e.code)

@@ -17,7 +17,8 @@ class PreviewsProcessor:
         trim_silence=False,
         normalize=False,
         sample_rate=None,
-        bit_depth=None
+        bit_depth=None,
+        skip_existing=False
     ):
         self.json_path = json_path
         self.output_folder = output_folder
@@ -25,6 +26,7 @@ class PreviewsProcessor:
         self.normalize = normalize
         self.sample_rate = sample_rate
         self.bit_depth = bit_depth
+        self.skip_existing = skip_existing
 
     def run(self, worker_instance=None):
         try:
@@ -41,6 +43,10 @@ class PreviewsProcessor:
                 instrument_folder = sample["instrument"]
                 wav_path = Path(self.output_folder) / instrument_folder / wav_name
                 wav_path.parent.mkdir(parents=True, exist_ok=True)
+
+                if self.skip_existing and wav_path.exists():
+                    logger.info(f"Skipping existing file: {wav_path}")
+                    continue
 
                 try:
                     trim_and_normalize_wav(
@@ -60,7 +66,7 @@ class PreviewsProcessor:
             return 1  # Error
 
 
-def main(json_path: str, output_folder: str, trim_silence: bool, normalize: bool, sample_rate: int, bit_depth: int):
+def main(json_path: str, output_folder: str, trim_silence: bool, normalize: bool, sample_rate: int, bit_depth: int, skip_existing: bool):
     processor = PreviewsProcessor(
         json_path=json_path,
         output_folder=output_folder,
@@ -68,6 +74,7 @@ def main(json_path: str, output_folder: str, trim_silence: bool, normalize: bool
         normalize=normalize,
         sample_rate=sample_rate,
         bit_depth=bit_depth,
+        skip_existing=skip_existing,
     )
     sys.exit(processor.run())
 
@@ -80,6 +87,7 @@ if __name__ == "__main__":
     parser.add_argument("--normalize", action="store_true", help="Normalize wav files")
     parser.add_argument("--sample_rate", type=int, help="Convert all samples to this sample rate (e.g. 48000)")
     parser.add_argument("--bit_depth", type=int, help="Convert all samples to this bit depth (e.g. 16)")
+    parser.add_argument("--skip_existing", action="store_true", help="Skip processing if output file already exists")
 
     args = parser.parse_args()
 
@@ -111,6 +119,7 @@ if __name__ == "__main__":
             normalize=args.normalize,
             sample_rate=args.sample_rate,
             bit_depth=args.bit_depth,
+            skip_existing=args.skip_existing,
         )
     except SystemExit as e:
         sys.exit(e.code)

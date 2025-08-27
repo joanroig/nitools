@@ -16,6 +16,7 @@ class GroupsExporterConfig(BaseModel):
     sample_rate: str = Field(default="", description="Target sample rate (e.g., '48000')")
     bit_depth: str = Field(default="", description="Target bit depth (e.g., '16')")
     enable_matrix: bool = Field(default=True, description="Enable pad reorder matrix")
+    skip_existing: bool = Field(default=True, description="Skip processing if output file already exists")
     matrix_config: MatrixConfig = Field(default_factory=MatrixConfig, description="Configuration for pad reordering matrix")
     filter_pads: bool = Field(default=True, description="Enable pad filtering by keywords")
     pad_filter_config: PadFilterConfig = Field(default_factory=PadFilterConfig, description="Configuration for pad filtering keywords")
@@ -23,3 +24,5 @@ class GroupsExporterConfig(BaseModel):
     fill_blanks: bool = Field(default=True, description="Fill blank pads with a default sample")
     fill_blanks_path: str = Field(default="", description="Path to the sample or folder for filling blank pads. If empty, a default silence sample will be used.")
     show_terminal: bool = Field(default=True, description="Show terminal output at the bottom of the window")
+    width: int = Field(default=0, description="Window width")
+    height: int = Field(default=0, description="Window height")

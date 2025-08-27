@@ -1,7 +1,7 @@
 import logging
 import os
 import sys
-from logging.handlers import RotatingFileHandler
+from concurrent_log_handler import ConcurrentRotatingFileHandler as RotatingFileHandler
 
 import colorlog
 
@@ -9,7 +9,8 @@ from utils.constants import LOGS_PATH
 
 
 class Logger:
-    _loggers = {}  # Store loggers by name
+    _loggers = {}
+    _file_handler = None
 
     @staticmethod
     def get_logger(name="default", level=logging.INFO) -> logging.Logger:
@@ -24,9 +25,9 @@ class Logger:
 
         self._logger = logging.getLogger(name)
         self._logger.setLevel(level)
-        self._logger.propagate = False  # Avoid duplicate logs if root logger exists
+        self._logger.propagate = False
 
-        # Colored console handler
+        # Console handler
         formatter_console = colorlog.ColoredFormatter(
             '%(log_color)s%(asctime)s - %(name)s - %(levelname)s - %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S',
@@ -43,21 +44,20 @@ class Logger:
         ch.setFormatter(formatter_console)
         self._logger.addHandler(ch)
 
-        # Ensure logs directory exists
-        os.makedirs(LOGS_PATH, exist_ok=True)
-
-        # Rotating file handler (larger maxBytes, avoid locking)
-        log_file = os.path.join(LOGS_PATH, 'NITools.log')
-        fh = RotatingFileHandler(
-            log_file,
-            maxBytes=10 * 1024 * 1024,  # 10 MB per file
-            backupCount=5,
-            encoding='utf-8',  # Always specify encoding
-            delay=True
-        )
-        fh.setLevel(level)
-        fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-        self._logger.addHandler(fh)
+        # Shared file handler
+        if Logger._file_handler is None:
+            os.makedirs(LOGS_PATH, exist_ok=True)
+            log_file = os.path.join(LOGS_PATH, 'NITools.log')
+            Logger._file_handler = RotatingFileHandler(
+                log_file,
+                maxBytes=10 * 1024 * 1024,
+                backupCount=5,
+                encoding='utf-8'
+            )
+            Logger._file_handler.setFormatter(logging.Formatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            ))
+        self._logger.addHandler(Logger._file_handler)
 
         Logger._loggers[name] = self._logger
 

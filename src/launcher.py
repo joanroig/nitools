@@ -94,7 +94,7 @@ class MainGUI(QtWidgets.QMainWindow):
         title_layout.setSpacing(10)
 
         title_image_label = QtWidgets.QLabel()
-        icon_path = get_bundled_path('img/logos/nitools.png')
+        icon_path = get_bundled_path('resources/icons/nitools.png')
         if os.path.exists(icon_path):
             pixmap = QtGui.QPixmap(icon_path).scaled(48, 48, QtCore.Qt.AspectRatioMode.KeepAspectRatio,
                                                      QtCore.Qt.TransformationMode.SmoothTransformation)
@@ -109,7 +109,7 @@ class MainGUI(QtWidgets.QMainWindow):
         font.setBold(True)
         title_label.setFont(font)
 
-        subtitle_label = QtWidgets.QLabel("Unofficial tools to convert NI resources")
+        subtitle_label = QtWidgets.QLabel("Extract and convert NI resources")
         set_font_properties(subtitle_label, point_size=10, italic=True)
 
         title_text_layout.addWidget(title_label)
@@ -123,7 +123,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.groups_button = self.create_tool_button(
             "Groups Exporter",
             "Export Maschine groups, i.e. to be used with SP 404 MK2",
-            get_bundled_path('img/logos/groups.png'),
+            get_bundled_path('resources/icons/groups.png'),
             self.launch_groups_exporter
         )
         self.layout.addWidget(self.groups_button)
@@ -131,7 +131,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.previews_button = self.create_tool_button(
             "Previews Exporter",
             "Gather and export all NKS audio previews as .wav files",
-            get_bundled_path('img/logos/previews.png'),
+            get_bundled_path('resources/icons/previews.png'),
             self.launch_previews_exporter
         )
         self.layout.addWidget(self.previews_button)
@@ -139,7 +139,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.kits_button = self.create_tool_button(
             "Kits Exporter",
             "Battery Kits exporter, work in progress...",
-            get_bundled_path('img/logos/kits.png'),
+            get_bundled_path('resources/icons/kits.png'),
             None
         )
         self.kits_button.setEnabled(False)
@@ -217,7 +217,7 @@ class MainGUI(QtWidgets.QMainWindow):
 
         arrow_icon_label = QtWidgets.QLabel()
         # Use custom arrow icon
-        arrow_icon_path = get_bundled_path('img/icons/arrow-right.png')
+        arrow_icon_path = get_bundled_path('resources/icons/arrow-right.png')
         if os.path.exists(arrow_icon_path):
             arrow_pixmap = QtGui.QPixmap(arrow_icon_path).scaled(24, 24, QtCore.Qt.AspectRatioMode.KeepAspectRatio,
                                                                  QtCore.Qt.TransformationMode.SmoothTransformation)
@@ -233,7 +233,7 @@ class MainGUI(QtWidgets.QMainWindow):
     def _create_config_button(self):
         config_btn = QtWidgets.QPushButton()
         config_btn.setToolTip("Open Configuration")
-        icon_path = get_bundled_path('img/icons/cog.png')
+        icon_path = get_bundled_path('resources/icons/cog.png')
         if os.path.exists(icon_path):
             config_btn.setIcon(QtGui.QIcon(icon_path))
             config_btn.setIconSize(QtCore.QSize(24, 24))
@@ -292,7 +292,7 @@ def main():
     unique_key = "NIToolsLauncherSingleInstance"
     app.shared_memory = QSharedMemory(unique_key)  # Store on app to keep it alive
 
-    icon_path = get_bundled_path('img/logos/nitools.png')
+    icon_path = get_bundled_path('resources/icons/nitools.png')
     if os.path.exists(icon_path):
         app.setWindowIcon(QtGui.QIcon(icon_path))
 
