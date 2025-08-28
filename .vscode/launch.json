@@ -110,6 +110,32 @@
       "env": {
         "PYTHONPATH": "${workspaceFolder}/src"
       }
+    },
+    {
+      "name": "Python: Generate PDF",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "docs/makepdf.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "args": ["docs/GUIDE.md", "nitools-guide.pdf"],
+      "justMyCode": true,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      }
+    },
+    {
+      "name": "Python: Generate UPIDS",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "docs/upids/export.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "args": [],
+      "justMyCode": true,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      }
     }
   ]
 }

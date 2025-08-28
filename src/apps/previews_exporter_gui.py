@@ -146,6 +146,24 @@ class PreviewsExporterGUI(QtWidgets.QDialog):
         options_group.setLayout(options_layout)
         export_form_layout.addRow(options_group)
 
+        # --- Skip Options group ---
+        skip_content_group = QtWidgets.QGroupBox('Skip Content')
+        skip_content_layout = QtWidgets.QVBoxLayout()
+        self.skip_maschine_folders = QtWidgets.QCheckBox('Skip Maschine folders (.mxgrp)')
+        self.skip_maschine_folders.setToolTip('If checked, folders containing .mxgrp files will be skipped.')
+        self.skip_battery_kits = QtWidgets.QCheckBox('Skip Battery kits (.nbkt)')
+        self.skip_battery_kits.setToolTip('If checked, files ending with .nbkt.ogg will be skipped.')
+        self.skip_native_browser_preview_library = QtWidgets.QCheckBox("Skip 'Native Browser Preview Library' folder (it's huge!)")
+        self.skip_native_browser_preview_library.setToolTip("If checked, previews from the 'Native Browser Preview Library' will be skipped completely.")
+        self.find_real_instrument_folder = QtWidgets.QCheckBox("Find real instrument folder names for the 'Native Browser Preview Library'")
+        self.find_real_instrument_folder.setToolTip('If checked, try to find the real instrument name for the "Native Browser Preview Library" previews.')
+        skip_content_layout.addWidget(self.skip_maschine_folders)
+        skip_content_layout.addWidget(self.skip_battery_kits)
+        skip_content_layout.addWidget(self.skip_native_browser_preview_library)
+        skip_content_layout.addWidget(self.find_real_instrument_folder)
+        skip_content_group.setLayout(skip_content_layout)
+        export_form_layout.addRow(skip_content_group)
+
         scroll_content_export_layout.addLayout(export_form_layout)
 
         scroll_content_export.setLayout(scroll_content_export_layout)
@@ -181,6 +199,12 @@ class PreviewsExporterGUI(QtWidgets.QDialog):
         self.setup_config_signals()
         self.on_json_path_changed()  # Call once to set initial state based on json_path
         self.toggle_terminal_visibility(self.config.previews_exporter.show_terminal)
+
+        self.skip_native_browser_preview_library.toggled.connect(self._update_find_real_instrument_folder_state)
+        self._update_find_real_instrument_folder_state(self.skip_native_browser_preview_library.isChecked())
+
+    def _update_find_real_instrument_folder_state(self, checked):
+        self.find_real_instrument_folder.setEnabled(not checked)
 
     def closeEvent(self, event):
         # Save current window size to config
@@ -306,6 +330,10 @@ class PreviewsExporterGUI(QtWidgets.QDialog):
             (self.sample_rate, 'sample_rate'),
             (self.bit_depth, 'bit_depth'),
             (self.skip_existing, 'skip_existing'),
+            (self.skip_maschine_folders, 'skip_maschine_folders'),
+            (self.skip_battery_kits, 'skip_battery_kits'),
+            (self.skip_native_browser_preview_library, 'skip_native_browser_preview_library'),
+            (self.find_real_instrument_folder, 'find_real_instrument_folder'),
             (self.bottom_banner.show_terminal_button, 'show_terminal'),
         ]:
             if isinstance(widget, QtWidgets.QLineEdit):
@@ -330,6 +358,10 @@ class PreviewsExporterGUI(QtWidgets.QDialog):
         self.sample_rate.setText(c.sample_rate)
         self.bit_depth.setText(c.bit_depth)
         self.skip_existing.setChecked(c.skip_existing)
+        self.skip_maschine_folders.setChecked(c.skip_maschine_folders)
+        self.skip_battery_kits.setChecked(c.skip_battery_kits)
+        self.skip_native_browser_preview_library.setChecked(c.skip_native_browser_preview_library)
+        self.find_real_instrument_folder.setChecked(c.find_real_instrument_folder)
         self.bottom_banner.show_terminal_button.setChecked(c.show_terminal)
 
     def set_step2_enabled(self, enabled):
@@ -339,6 +371,10 @@ class PreviewsExporterGUI(QtWidgets.QDialog):
             self.run_process_btn,
             self.sample_rate, self.bit_depth,
             self.skip_existing,
+            self.skip_maschine_folders,
+            self.skip_battery_kits,
+            self.skip_native_browser_preview_library,
+            self.find_real_instrument_folder,
         ]
         for w in widgets:
             w.setEnabled(enabled)
@@ -413,6 +449,10 @@ class PreviewsExporterGUI(QtWidgets.QDialog):
             sample_rate=sample_rate_val,
             bit_depth=bit_depth_val,
             skip_existing=self.config.previews_exporter.skip_existing,
+            skip_maschine_folders=self.config.previews_exporter.skip_maschine_folders,
+            skip_battery_kits=self.config.previews_exporter.skip_battery_kits,
+            skip_native_browser_preview_library=self.config.previews_exporter.skip_native_browser_preview_library,
+            find_real_instrument_folder=self.config.previews_exporter.find_real_instrument_folder,
         )
         self.log_output.append(f"Starting preview export process for JSON: {json_path}")
         self.show_loading('Exporting previews...')

@@ -1,6 +1,9 @@
-import soundfile as sf
+import os
+
 import numpy as np
 import resampy
+import soundfile as sf
+
 
 def trim_and_normalize_wav(
     input_path: str,
@@ -47,4 +50,13 @@ def trim_and_normalize_wav(
         subtype = info.subtype if info.format == "WAV" else "PCM_24"
 
     # Write audio
-    sf.write(output_path, data.T, sr, subtype=subtype, format="WAV")
+    if data.size == 0:
+        raise RuntimeError(f"No audio data to write for '{output_path}'")
+    try:
+        sf.write(output_path, data.T, sr, subtype=subtype, format="WAV")
+    except Exception as e:
+        # Safety check: remove empty WAV files
+        if os.path.exists(output_path) and os.path.getsize(output_path) <= 44:
+            os.remove(output_path)
+            raise RuntimeError(f"WAV file '{output_path}' is empty or invalid (44 bytes) and was deleted")
+        raise RuntimeError(f"Failed to write '{output_path}': {e}") from e
