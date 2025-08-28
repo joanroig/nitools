@@ -20,6 +20,12 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/joanroig/nitools/releases">
+    <img alt="Showcase" src="docs/img/showcase.png">
+  </a>
+</p>
+
+<p align="center">
   <table align="center" border="0" cellspacing="0" cellpadding="0">
     <tr>
       <td valign="middle" style="padding-right: 20px;">
@@ -65,13 +71,18 @@ The initial idea was to export Maschine groups to use them in the Roland SP 404 
 - **NKS Previews Exporter:** Convert NKS audio previews to WAV for one-shot instruments on other platforms.
 - **Battery Kits Exporter (WIP):** Early-stage tool to parse `.nbkt` kits for future export support.
 
+### ⚠️ Compatibility Note
+
+NITools has been **tested only on Windows**.  
+While pre-built executables are provided for macOS, some features may require **adaptations** (e.g., accessing the registry and other OS-specific behaviors).  
+Mac users should expect additional setup or adjustments. Feel free to open a PR!
+
 ## Modules
 
 ### <img alt="Groups Exporter" src="resources/icons/groups.png" width="16px"> **Groups Exporter (Maschine)**
 
 - Scans a folder for all Maschine group files and parses sample data.
 - Configurable normalization, sample rate, bit depth, and silence trimming.
-- Customizable export naming to optimize bulk loading (e.g., Roland SP-404 MK2).
 - Pad reorder matrix and filtering options.
 - Option to fill blank pads with a default sample.
 - Option to include group preview samples.
@@ -80,6 +91,8 @@ The initial idea was to export Maschine groups to use them in the Roland SP 404 
 
 - Converts NKS `.previews` to standardized WAV files for easy browsing outside NI software.
 - Configurable normalization, sample rate, bit depth, and silence trimming.
+- Options to skip content from Maschine, Battery, or the large 'Native Browser Preview Library'.
+- Option to find the real instrument folder names for previews.
 
 ### <img alt="Kits Exporter" src="resources/icons/kits.png" width="16px"> **Battery Kits Exporter (WIP)**
 
@@ -243,11 +256,15 @@ Options:
 - `--sample_rate <rate>` → Convert all samples to this sample rate (e.g., `48000`)
 - `--bit_depth <depth>` → Convert all samples to this bit depth (e.g., `16`)
 - `--skip_existing` → Skip processing if output file already exists
+- `--skip_maschine_folders` → Skip folders containing .mxgrp files (Maschine groups)
+- `--skip_battery_kits` → Skip files ending with .nbkt.ogg (Battery kits)
+- `--skip_native_browser_preview_library` → Skip 'Native Browser Preview Library' folder
+- `--find_real_instrument_folder` → Find real instrument folder for the Preview Library
 
 **Example:**
 
 ```powershell
-python src/processors/previews/process_previews_json.py ./out/all_previews.json ./out/previews/ --trim_silence --normalize --sample_rate 44100 --bit_depth 24 --skip_existing
+python src/processors/previews/process_previews_json.py ./out/all_previews.json ./out/previews/ --trim_silence --normalize --sample_rate 44100 --bit_depth 24 --skip_existing --skip_maschine_folders --skip_battery_kits --skip_native_browser_preview_library
 ```
 
 ## 🤝 Contributing
