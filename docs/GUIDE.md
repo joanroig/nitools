@@ -44,7 +44,7 @@ _Screenshot of the Groups Exporter "Process Groups" tab._
 
 1. **Input folder:** Select the root folder of your Native Instruments library (e.g., `D:/Libraries/Native Instruments/`).
 2. **Output folder:** Choose where the `all_groups.json` file will be saved (e.g., `./out/`).
-3. **Generate TXT files:** Check this option if you also want to generate `.txt` files alongside the JSON, containing additional information.
+3. **Generate TXT files:** Check this option if you also want to generate `.txt` files alongside the JSON, containing unprocessed information for debug purposes.
 4. **Click "Process Groups"** to start the process.
 
 ### Step 2: Export Groups

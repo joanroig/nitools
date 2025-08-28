@@ -86,7 +86,7 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         build_layout.addRow('Output folder:', output_folder_layout)
 
         self.generate_txt = QtWidgets.QCheckBox('Generate TXT files')
-        self.generate_txt.setToolTip('If checked, a .txt file will be generated for each group, listing its samples.')
+        self.generate_txt.setToolTip('If checked, a .txt file will be generated for each group, listing unprocessed data for debug purposes.')
         build_layout.addRow('', self.generate_txt)
 
         scroll_area_process = QtWidgets.QScrollArea()
