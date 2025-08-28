@@ -160,10 +160,10 @@ class MainGUI(QtWidgets.QMainWindow):
         banner_layout.addStretch()
         # Clickable icons
         for name, url, icon_file in [
-            ("Spotify", "https://open.spotify.com/artist/5Zt96vfBQXmUB3fs3Qkm5q", "img/icons/spotify.png"),
-            ("Apple Music", "https://music.apple.com/es/artist/moai-beats/1466043534", "img/icons/applemusic.png"),
-            ("YouTube", "http://youtube.com/moaibeats?sub_confirmation=1", "img/icons/youtube.png"),
-            ("Bandcamp", "https://moaibeats.bandcamp.com", "img/icons/bandcamp.png")
+            ("Spotify", "https://open.spotify.com/artist/5Zt96vfBQXmUB3fs3Qkm5q", "resources/icons/spotify.png"),
+            ("Apple Music", "https://music.apple.com/es/artist/moai-beats/1466043534", "resources/icons/applemusic.png"),
+            ("YouTube", "http://youtube.com/moaibeats?sub_confirmation=1", "resources/icons/youtube.png"),
+            ("Bandcamp", "https://moaibeats.bandcamp.com", "resources/icons/bandcamp.png")
         ]:
             btn = QtWidgets.QPushButton()
             btn.setToolTip(f"Listen on {name}")
