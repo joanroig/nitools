@@ -46,6 +46,10 @@
 
 Pre-built executables for **Windows** and **macOS** are available on the [Releases page](https://github.com/joanroig/nitools/releases).
 
+### 🛠️ Usage
+
+For a detailed user guide, including GUI screenshots and step-by-step instructions, please refer to the [User Guide](docs/GUIDE.md).
+
 ## ✨ Overview
 
 **NITools** is an unofficial, **multi-platform** suite of tools designed to **bulk extract, convert, and repurpose Native Instruments content** for broader workflows.
@@ -117,8 +121,6 @@ The initial idea was to export Maschine groups to use them in the Roland SP 404 
 ```powershell
 pip install -r requirements.txt
 ```
-
-### 🛠️ Usage
 
 #### Overview
 
