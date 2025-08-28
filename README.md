@@ -77,7 +77,7 @@ The initial idea was to export Maschine groups to use them in the Roland SP 404 
 - Converts NKS `.previews` to standardized WAV files for easy browsing outside NI software.
 - Configurable normalization, sample rate, bit depth, and silence trimming.
 
-### <img alt="Kits Exporter" src="resources/icons/kits.png" width="16px"> **Previews Exporter (NKS)**
+### <img alt="Kits Exporter" src="resources/icons/kits.png" width="16px"> **Battery Kits Exporter (WIP)**
 
 - Planned tool for exporting Battery kits, similar in functionality to the Maschine Groups Exporter.
 
@@ -202,11 +202,12 @@ Options:
 - `--sample_rate <rate>` → Convert all samples to this sample rate (e.g., `48000`)
 - `--bit_depth <depth>` → Convert all samples to this bit depth (e.g., `16`)
 - `--include_preview` → Include preview samples from groups .previews
+- `--skip_existing` → Skip processing if output file already exists
 
 **Example:**
 
 ```powershell
-python src/processors/groups/process_groups_json.py ./out/all_groups.json ./out/groups/ --trim_silence --normalize --enable_matrix --filter_pads --fill_blanks --fill_blanks_path resources/audio/.wav --sample_rate 44100 --bit_depth 24 --include_preview
+python src/processors/groups/process_groups_json.py ./out/all_groups.json ./out/groups/ --trim_silence --normalize --enable_matrix --filter_pads --fill_blanks --fill_blanks_path resources/audio/.wav --sample_rate 44100 --bit_depth 24 --include_preview --skip_existing
 ```
 
 ##### 3. `build_previews_json.py`
@@ -239,11 +240,12 @@ Options:
 - `--normalize` → Normalize volume
 - `--sample_rate <rate>` → Convert all samples to this sample rate (e.g., `48000`)
 - `--bit_depth <depth>` → Convert all samples to this bit depth (e.g., `16`)
+- `--skip_existing` → Skip processing if output file already exists
 
 **Example:**
 
 ```powershell
-python src/processors/previews/process_previews_json.py ./out/all_previews.json ./out/previews/ --trim_silence --normalize --sample_rate 44100 --bit_depth 24
+python src/processors/previews/process_previews_json.py ./out/all_previews.json ./out/previews/ --trim_silence --normalize --sample_rate 44100 --bit_depth 24 --skip_existing
 ```
 
 ## 🤝 Contributing
