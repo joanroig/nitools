@@ -1,3 +1,6 @@
+# Enable fail-fast: stop execution immediately if any command fails
+$ErrorActionPreference = "Stop"
+
 # Define base paths
 $Root = Get-Location
 $BaseDistPath = Join-Path $Root "dist"
