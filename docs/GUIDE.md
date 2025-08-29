@@ -19,6 +19,7 @@ The `NITools Launcher` is the central entry point for all GUI tools. It allows y
 To start the Launcher:
 
 - **Windows:** Double-click the `NITools.exe` executable (if using a pre-built release).
+- **macOS:** After extracting the downloaded `.zip` file, open a terminal, navigate to the extracted folder, and run `chmod +x "./NITools.app/Contents/MacOS/NITools"`. This will ensure the application has the necessary permissions and then launch it.
 - **From Source (Python):** Run `src/launcher.py` using your Python environment.
 
 Once launched, you will see the main window:

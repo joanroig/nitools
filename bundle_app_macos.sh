@@ -1,17 +1,16 @@
 #!/bin/bash
 
-# Paths
-distPath="./dist"
-distAppPath="$distPath/NITools"
+# Define base paths
+root="$(pwd)"
+baseDistPath="$root/dist"
+platformDistPath="$baseDistPath/macos/NITools"
 
 # Ensure dist folder exists and remove old distribution
-mkdir -p "$distPath"
-if [ -d "$distAppPath" ]; then
-    rm -rf "$distAppPath"
-fi
+rm -rf "$platformDistPath"
+mkdir -p "$platformDistPath"
 
 # Fetch version number from src/utils/version.py
-VERSION=$(python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)")
+VERSION=$(python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)" | xargs)
 
 # Run PyInstaller to bundle the app as a macOS .app
 python -m PyInstaller \
@@ -21,18 +20,18 @@ python -m PyInstaller \
     --icon=icons/app.icns \
     ./src/launcher.py \
     -n "NITools" \
-    --distpath "$distAppPath" \
-    --osx-bundle-identifier "com.moaibeats.nitools"
+    --distpath "$platformDistPath"
 
-# Generate PDF guide
-python docs/makepdf.py docs/GUIDE.md "$distAppPath/nitools-guide.pdf"
+# Remove intermediate folder created by PyInstaller
+rm -rf "$platformDistPath/NITools"
 
-# Change directory to dist
-cd "$distPath"
+# Generate PDF guide inside NITools folder
+guidePath="$platformDistPath/nitools-guide.pdf"
+python docs/makepdf.py docs/GUIDE.md "$guidePath"
 
 # Create the zip file with the version number
 zipName="NITools_macOS_v$VERSION.zip"
-zip -r "$zipName" "NITools"
-
-# Return to original directory
-cd ".."
+(
+    cd "$baseDistPath/macos"
+    zip -r "$baseDistPath/$zipName" "NITools"
+)

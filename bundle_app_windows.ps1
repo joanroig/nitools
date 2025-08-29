@@ -1,15 +1,15 @@
-# Paths
-$distPath = "./dist"
-$distAppPath = Join-Path $distPath "NITools"
+# Define base paths
+$Root = Get-Location
+$BaseDistPath = Join-Path $Root "dist"
+$PlatformDistPath = Join-Path $BaseDistPath "windows\NITools"
 
 # Ensure dist folder exists and remove old distribution
-New-Item -ItemType Directory -Path $distPath -Force | Out-Null
-if (Test-Path $distAppPath) {
-    Remove-Item $distAppPath -Recurse -Force
-}
+Remove-Item $PlatformDistPath -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Path $PlatformDistPath -Force | Out-Null
 
 # Fetch version number from src/utils/version.py
-$VERSION = python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)" | ForEach-Object { $_.Trim() }
+$VERSION = python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)" |
+    ForEach-Object { $_.Trim() }
 
 # Run PyInstaller to bundle the app as a single Windows .exe
 python -m PyInstaller `
@@ -20,17 +20,13 @@ python -m PyInstaller `
     --icon=icons/app.ico `
     ./src/launcher.py `
     -n "NITools" `
-    --distpath $distAppPath
+    --distpath $PlatformDistPath
 
 # Generate PDF guide
-python docs/makepdf.py docs/GUIDE.md "$distAppPath/nitools-guide.pdf"
-
-# Change directory to dist
-Set-Location $distPath
+$GuidePath = Join-Path $PlatformDistPath "nitools-guide.pdf"
+python docs/makepdf.py docs/GUIDE.md $GuidePath
 
 # Create the zip file with the version number
-$zipName = "NITools_Windows_v$VERSION.zip"
-Compress-Archive -Path "NITools" -DestinationPath $zipName -Force
-
-# Return to original directory
-Set-Location ".."
+$ZipName = "NITools_Windows_v$VERSION.zip"
+$ZipPath = Join-Path $BaseDistPath $ZipName
+Compress-Archive -Path $PlatformDistPath -DestinationPath $ZipPath -Force
