@@ -70,17 +70,14 @@ jobs:
       matrix:
         include:
           - runner_label: windows-latest
-            os: windows-latest
             python_arch: x64
             artifact_suffix: ""
             target_arch: "" # Not used for Windows
           - runner_label: macos-13
-            os: macos-14
             python_arch: x64
             artifact_suffix: "_x86_64"
             target_arch: x86_64
           - runner_label: macos-latest
-            os: macos-14
             python_arch: arm64
             artifact_suffix: "_arm64"
             target_arch: arm64
@@ -117,12 +114,12 @@ jobs:
         shell: pwsh
 
       - name: Bundle application (macOS)
-        if: contains(matrix.os, 'macos')
+        if: runner.os == 'macOS'
         run: bash ./bundle_app_macos.sh ${{ matrix.target_arch }}
         shell: bash
 
       - name: Verify artifact exists (macOS)
-        if: contains(matrix.os, 'macos')
+        if: runner.os == 'macOS'
         run: |
           file="./dist/NITools_macOS${{ matrix.artifact_suffix }}_v${{ needs.prepare_release.outputs.app_version }}.zip"
           if [ ! -f "$file" ]; then
@@ -137,7 +134,7 @@ jobs:
           tag_name: v${{ needs.prepare_release.outputs.app_version }}
           files: |
             ${{ runner.os == 'Windows' && format('./dist/NITools_Windows_v{0}.zip', needs.prepare_release.outputs.app_version) || '' }}
-            ${{ contains(matrix.os, 'macos') && format('./dist/NITools_macOS{0}_v{1}.zip', matrix.artifact_suffix, needs.prepare_release.outputs.app_version) || '' }}
+            ${{ runner.os == 'macOS' && format('./dist/NITools_macOS{0}_v{1}.zip', matrix.artifact_suffix, needs.prepare_release.outputs.app_version) || '' }}
           name: Release v${{ needs.prepare_release.outputs.app_version }}
           draft: false
           prerelease: false
