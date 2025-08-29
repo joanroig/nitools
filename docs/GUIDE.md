@@ -39,7 +39,7 @@ To open the Groups Exporter, click the "Groups Exporter" button in the Launcher.
 
 This step scans your Native Instruments library for Maschine group files and creates a combined JSON index of their metadata.
 
-![Groups Exporter - Build JSON](<img/nitools groups export.png>)
+![Groups Exporter - Build JSON](<img/nitools groups process.png>)
 _Screenshot of the Groups Exporter "Process Groups" tab._
 
 1. **Input folder:** Select the root folder of your Native Instruments library (e.g., `D:/Libraries/Native Instruments/`).
@@ -51,7 +51,7 @@ _Screenshot of the Groups Exporter "Process Groups" tab._
 
 After building the JSON, this step processes the extracted group data into cleaned and usable kits, applying various transformations.
 
-![Groups Exporter - Process Groups](<img/nitools groups process.png>)
+![Groups Exporter - Process Groups](<img/nitools groups export.png>)
 _Screenshot of the Groups Exporter "Export Groups" tab._
 
 1. **JSON file:** This field will automatically populate with the `all_groups.json` generated in Step 1. You can also manually select a different JSON file.
