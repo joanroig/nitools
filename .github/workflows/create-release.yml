@@ -74,12 +74,12 @@ jobs:
             python_arch: x64
             artifact_suffix: ""
             target_arch: "" # Not used for Windows
-          - runner_label: [macos-14, x64]
+          - runner_label: macos-13
             os: macos-14
             python_arch: x64
             artifact_suffix: "_x86_64"
             target_arch: x86_64
-          - runner_label: [macos-14, arm64]
+          - runner_label: macos-latest
             os: macos-14
             python_arch: arm64
             artifact_suffix: "_arm64"
