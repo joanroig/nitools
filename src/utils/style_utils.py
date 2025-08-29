@@ -1,7 +1,4 @@
 import os
-import re
-import uuid
-from datetime import datetime
 
 import qdarktheme
 
@@ -9,19 +6,6 @@ from utils.bundle_utils import get_bundled_path
 from utils.config_utils import load_config
 from utils.enums import Style
 
-
-def unique_id():
-    """Get unique ID"""
-    return uuid.uuid4().hex
-
-def sanitize(path):
-    """Replace all characters other than letters and numbers with underscores"""
-    sanitized_path = re.sub(r'[^a-zA-Z0-9]', '_', path)
-    return sanitized_path
-
-def get_current_datetime():
-    """Returns the current datetime formatted as YYYY_MM_DD_HH_MM."""
-    return datetime.now().strftime('%Y_%m_%d_%H_%M')
 
 def set_font_properties(widget, point_size=None, bold=None, italic=None):
     """

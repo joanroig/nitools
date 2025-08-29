@@ -17,7 +17,7 @@ from processors.groups.build_groups_json import GroupsJsonBuilder
 from processors.groups.process_groups_json import GroupsProcessor
 from utils import config_utils
 from utils.bundle_utils import get_bundled_path
-from utils.utils import apply_style
+from utils.style_utils import apply_style
 from utils.worker_utils import WorkerThread
 
 
@@ -67,6 +67,7 @@ class GroupsExporterGUI(QtWidgets.QDialog):
 
         self.input_folder = QtWidgets.QLineEdit()
         self.input_folder.setToolTip('Select the folder containing your .mxgrp files.')
+        self.input_folder.setPlaceholderText('e.g., C:/Users/YourName/Documents/Native Instruments/Maschine 2/Groups')
         self.input_folder_btn = QtWidgets.QPushButton('Choose')
         self.input_folder_btn.setToolTip('Browse for the input folder.')
         self.input_folder_btn.clicked.connect(self.choose_input_folder)
@@ -77,6 +78,7 @@ class GroupsExporterGUI(QtWidgets.QDialog):
 
         self.output_folder = QtWidgets.QLineEdit()
         self.output_folder.setToolTip('Select the folder where the generated JSON and optional TXT files will be saved.')
+        self.output_folder.setPlaceholderText('e.g., C:/Users/YourName/Documents/NITools/GroupsJSON')
         self.output_folder_btn = QtWidgets.QPushButton('Choose')
         self.output_folder_btn.setToolTip('Browse for the output folder.')
         self.output_folder_btn.clicked.connect(self.choose_output_folder)
@@ -118,6 +120,7 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         export_form_layout = QtWidgets.QFormLayout()
         self.json_path = QtWidgets.QLineEdit()
         self.json_path.setToolTip('Select the JSON file generated in Step 1 (e.g., all_groups.json).')
+        self.json_path.setPlaceholderText('e.g., C:/Users/YourName/Documents/NITools/GroupsJSON/all_groups.json')
         self.json_path_btn = QtWidgets.QPushButton('Choose')
         self.json_path_btn.setToolTip('Browse for the JSON file.')
         self.json_path_btn.clicked.connect(self.choose_json_file)
@@ -127,6 +130,7 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         export_form_layout.addRow('JSON file:', json_path_layout)
         self.proc_output_folder = QtWidgets.QLineEdit()
         self.proc_output_folder.setToolTip('Select the folder where the processed group samples will be exported.')
+        self.proc_output_folder.setPlaceholderText('e.g., C:/Users/YourName/Documents/NITools/ExportedGroups')
         self.proc_output_folder_btn = QtWidgets.QPushButton('Choose')
         self.proc_output_folder_btn.setToolTip('Browse for the output folder.')
         self.proc_output_folder_btn.clicked.connect(self.choose_proc_output_folder)

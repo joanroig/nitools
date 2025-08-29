@@ -4,17 +4,17 @@ import subprocess
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QPalette
-from PyQt6.QtWidgets import (QCheckBox, QColorDialog,
-                             QComboBox, QDialog, QDialogButtonBox, QFormLayout,
-                             QGroupBox, QHBoxLayout, QLabel, QLineEdit,
-                             QMessageBox, QPushButton, QSpinBox, QVBoxLayout)
+from PyQt6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDialog,
+                             QDialogButtonBox, QFormLayout, QGroupBox,
+                             QHBoxLayout, QLabel, QLineEdit, QMessageBox,
+                             QPushButton, QSpinBox, QVBoxLayout)
 
 from models.config import Config
 from utils.config_utils import load_config, save_config
 from utils.constants import LOGS_PATH, get_data_dir
 from utils.enums import Style
 from utils.logger import Logger
-from utils.utils import apply_style
+from utils.style_utils import apply_style
 
 logger = Logger.get_logger("ConfigurationDialog", logging.DEBUG)
 

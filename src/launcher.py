@@ -17,7 +17,7 @@ from utils import logger
 from utils.bundle_utils import get_bundled_path
 from utils.config_utils import load_config
 from utils.logger import Logger
-from utils.utils import apply_style, set_font_properties
+from utils.style_utils import apply_style, set_font_properties
 
 logger = Logger.get_logger("Launcher", logging.DEBUG)
 

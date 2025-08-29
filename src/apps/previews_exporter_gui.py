@@ -15,7 +15,7 @@ from processors.previews.build_previews_json import PreviewsJsonBuilder
 from processors.previews.process_previews_json import PreviewsProcessor
 from utils import config_utils
 from utils.bundle_utils import get_bundled_path
-from utils.utils import apply_style
+from utils.style_utils import apply_style
 from utils.worker_utils import WorkerThread
 
 
@@ -64,6 +64,7 @@ class PreviewsExporterGUI(QtWidgets.QDialog):
 
         self.output_folder = QtWidgets.QLineEdit()
         self.output_folder.setToolTip('Select the folder where the generated JSON file will be saved.')
+        self.output_folder.setPlaceholderText('e.g., C:/Users/YourName/Documents/NITools/PreviewsJSON')
         self.output_folder_btn = QtWidgets.QPushButton('Choose')
         self.output_folder_btn.setToolTip('Browse for the output folder.')
         self.output_folder_btn.clicked.connect(self.choose_output_folder)
@@ -103,6 +104,7 @@ class PreviewsExporterGUI(QtWidgets.QDialog):
 
         self.json_path = QtWidgets.QLineEdit()
         self.json_path.setToolTip('Select the JSON file generated in Step 1 (e.g., all_previews.json).')
+        self.json_path.setPlaceholderText('e.g., C:/Users/YourName/Documents/NITools/PreviewsJSON/all_previews.json')
         self.json_path_btn = QtWidgets.QPushButton('Choose')
         self.json_path_btn.setToolTip('Browse for the JSON file.')
         self.json_path_btn.clicked.connect(self.choose_json_file)
@@ -113,6 +115,7 @@ class PreviewsExporterGUI(QtWidgets.QDialog):
 
         self.proc_output_folder = QtWidgets.QLineEdit()
         self.proc_output_folder.setToolTip('Select the folder where the processed preview samples will be exported.')
+        self.proc_output_folder.setPlaceholderText('e.g., C:/Users/YourName/Documents/NITools/ExportedPreviews')
         self.proc_output_folder_btn = QtWidgets.QPushButton('Choose')
         self.proc_output_folder_btn.setToolTip('Browse for the output folder.')
         self.proc_output_folder_btn.clicked.connect(self.choose_proc_output_folder)

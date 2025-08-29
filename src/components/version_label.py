@@ -1,7 +1,7 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QLabel
 
-from utils.utils import set_font_properties
+from utils.style_utils import set_font_properties
 from utils.version import APP_VERSION_TEXT
 
 

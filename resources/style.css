@@ -10,3 +10,7 @@ QPushButton[class="accent"]:hover {
 QPushButton[class="accent"]:pressed {
   background-color: #3e8e41;
 }
+QPushButton[class="accent"]:disabled {
+  background-color: #a0a0a0;
+  color: #cccccc;
+}

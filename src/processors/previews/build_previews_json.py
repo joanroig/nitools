@@ -1,6 +1,5 @@
-import argparse  # Added argparse
+import argparse
 import json
-import os
 import sys
 import winreg
 from pathlib import Path

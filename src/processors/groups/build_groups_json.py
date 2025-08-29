@@ -7,7 +7,7 @@ import sys
 import zlib
 from pathlib import Path
 
-from utils.constants import LOGS_PATH
+from utils.file_utils import ensure_unique_path, sanitize
 from utils.logger import Logger
 
 logger = Logger.get_logger("GroupsBuilder")
@@ -215,40 +215,6 @@ def find_mxgrp_files(folder_in: str) -> list[str]:
     return mxgrp_files
 
 
-def safe_filename(s: str) -> str:
-    """
-    Make a string safe for filenames:
-    - Strip leading/trailing whitespace
-    - Replace spaces with underscores
-    - Remove characters that are not alnum, underscore, hyphen or dot
-    - Collapse repeated underscores
-    """
-    if not s:
-        return "unknown"
-    s = s.strip()
-    # replace spaces with underscores
-    s = s.replace(" ", "_")
-    # remove invalid chars
-    s = re.sub(r'[^A-Za-z0-9_\-\.]', '', s)
-    # collapse multiple underscores
-    s = re.sub(r'_+', '_', s)
-    return s or "unknown"
-
-
-def ensure_unique_path(folder: str, filename: str) -> str:
-    """
-    If filename already exists in folder, append _1, _2, ... until unique.
-    Returns the absolute filepath.
-    """
-    base, ext = os.path.splitext(filename)
-    candidate = filename
-    n = 1
-    while os.path.exists(os.path.join(folder, candidate)):
-        candidate = f"{base}_{n}{ext}"
-        n += 1
-    return os.path.join(folder, candidate)
-
-
 def clear_parsed_folder(output_folder: str):
     parsed_folder = os.path.join(output_folder, "parsed")
     if os.path.exists(parsed_folder):
@@ -292,8 +258,8 @@ def process_mxgrp_file(input_file: str, output_folder: str, generate_txt: bool =
     sample_data = classify_samples(filtered, group_name, expansion_name)
 
     # Build safe filename using expansion + group
-    safe_exp = safe_filename(expansion_name)
-    safe_group = safe_filename(group_name)
+    safe_exp = sanitize(expansion_name)
+    safe_group = sanitize(group_name)
     output_filename = f"{safe_exp}_{safe_group}.txt"
 
     # Ensure parsed subfolder exists
