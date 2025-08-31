@@ -40,11 +40,23 @@ MACOSX_DEPLOYMENT_TARGET=11.0 python -m PyInstaller \
 
 # The .app bundle is now at "$platformDistPath/NITools.app"
 
-# Generate PDF guide inside the .app bundle's Resources directory
-app_resources_path="$platformDistPath/NITools.app/Contents/Resources"
-mkdir -p "$app_resources_path" # Ensure the directory exists
-guidePath="$app_resources_path/nitools-guide.pdf"
+# Generate PDF guide next to the .app bundle for inclusion in DMG
+# app_resources_path="$platformDistPath/NITools.app/Contents/Resources" # No longer needed
+# mkdir -p "$app_resources_path" # Ensure the directory exists # No longer needed
+guidePath="$platformDistPath/nitools-guide.pdf" # Place guide directly in the dist folder
 python docs/makepdf.py docs/GUIDE.md "$guidePath"
+
+# Create helper script to remove quarantine attributes
+HELPER_SCRIPT_NAME="remove_quarantine.sh"
+helperScriptPath="$platformDistPath/$HELPER_SCRIPT_NAME"
+cat <<EOF > "$helperScriptPath"
+#!/bin/bash
+APP_NAME="NITools.app"
+echo "Removing quarantine attributes from \$APP_NAME..."
+xattr -cr "\$APP_NAME"
+echo "Done. You can now launch \$APP_NAME."
+EOF
+chmod +x "$helperScriptPath"
 
 # Create the DMG file
 dmgName="NITools_macOS${ARCH_SUFFIX}_v$VERSION.dmg"
@@ -58,10 +70,14 @@ fi
 
 create-dmg \
     --volname "NITools v$VERSION" \
+    --window-size 700 400 \
     --app-drop-link 600 185 \
     --icon "NITools.app" 200 185 \
+    --add-file "nitools-guide.pdf" "$guidePath" 300 185 \
+    --add-file "$HELPER_SCRIPT_NAME" "$helperScriptPath" 400 185 \
     "$dmgPath" \
     "$platformDistPath/NITools.app"
+
 
 # Clean up the intermediate .app bundle directory after DMG creation
 rm -rf "$platformDistPath"
