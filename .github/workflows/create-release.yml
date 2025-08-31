@@ -98,6 +98,16 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt --upgrade
 
+      - name: Install PyInstaller (macOS)
+        if: runner.os == 'macOS'
+        run: python -m pip install pyinstaller --upgrade
+        shell: bash
+
+      - name: Install create-dmg (macOS)
+        if: runner.os == 'macOS'
+        run: brew install create-dmg
+        shell: bash
+
       - name: Bundle application (Windows)
         if: runner.os == 'Windows'
         run: powershell -ExecutionPolicy Bypass -File .\bundle_app_windows.ps1
@@ -121,7 +131,7 @@ jobs:
       - name: Verify artifact exists (macOS)
         if: runner.os == 'macOS'
         run: |
-          file="./dist/NITools_macOS${{ matrix.artifact_suffix }}_v${{ needs.prepare_release.outputs.app_version }}.zip"
+          file="./dist/NITools_macOS${{ matrix.artifact_suffix }}_v${{ needs.prepare_release.outputs.app_version }}.dmg"
           if [ ! -f "$file" ]; then
             echo "::error::Expected artifact not found: $file"
             exit 1
@@ -134,7 +144,7 @@ jobs:
           tag_name: v${{ needs.prepare_release.outputs.app_version }}
           files: |
             ${{ runner.os == 'Windows' && format('./dist/NITools_Windows_v{0}.zip', needs.prepare_release.outputs.app_version) || '' }}
-            ${{ runner.os == 'macOS' && format('./dist/NITools_macOS{0}_v{1}.zip', matrix.artifact_suffix, needs.prepare_release.outputs.app_version) || '' }}
+            ${{ runner.os == 'macOS' && format('./dist/NITools_macOS{0}_v{1}.dmg', matrix.artifact_suffix, needs.prepare_release.outputs.app_version) || '' }}
           name: Release v${{ needs.prepare_release.outputs.app_version }}
           draft: false
           prerelease: false

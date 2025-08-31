@@ -16,18 +16,19 @@ fi
 
 # Define architecture-specific paths
 ARCH_SUFFIX="_${TARGET_ARCH}"
-archSpecificRootPath="$baseDistPath/macos${ARCH_SUFFIX}" # e.g., dist/macos_x86_64
-platformDistPath="$archSpecificRootPath/NITools" # e.g., dist/macos_x86_64/NITools
+# PyInstaller will create NITools.app inside this path
+platformDistPath="$baseDistPath/macos${ARCH_SUFFIX}" # e.g., dist/macos_x86_64
 
 # Ensure dist folder exists and remove old distribution for this architecture
-rm -rf "$archSpecificRootPath"
+rm -rf "$platformDistPath"
 mkdir -p "$platformDistPath"
 
 # Fetch version number from src/utils/version.py
 VERSION=$(python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)" | xargs)
 
 # Run PyInstaller to bundle the app as a macOS .app
-python -m PyInstaller \
+# MACOSX_DEPLOYMENT_TARGET ensures compatibility with older macOS versions
+MACOSX_DEPLOYMENT_TARGET=11.0 python -m PyInstaller \
     --noconfirm \
     --windowed \
     --add-data "resources:resources" \
@@ -37,16 +38,30 @@ python -m PyInstaller \
     -n "NITools" \
     --distpath "$platformDistPath"
 
-# Remove intermediate folder created by PyInstaller
-rm -rf "$platformDistPath/NITools"
+# The .app bundle is now at "$platformDistPath/NITools.app"
 
-# Generate PDF guide inside NITools folder
-guidePath="$platformDistPath/nitools-guide.pdf"
+# Generate PDF guide inside the .app bundle's Resources directory
+app_resources_path="$platformDistPath/NITools.app/Contents/Resources"
+mkdir -p "$app_resources_path" # Ensure the directory exists
+guidePath="$app_resources_path/nitools-guide.pdf"
 python docs/makepdf.py docs/GUIDE.md "$guidePath"
 
-# Create the zip file with the version number and architecture
-zipName="NITools_macOS${ARCH_SUFFIX}_v$VERSION.zip"
-(
-    cd "$archSpecificRootPath"
-    zip -r "$baseDistPath/$zipName" "NITools"
-)
+# Create the DMG file
+dmgName="NITools_macOS${ARCH_SUFFIX}_v$VERSION.dmg"
+dmgPath="$baseDistPath/$dmgName" # Output DMG to the main dist folder
+
+# Ensure the .app bundle exists before creating DMG
+if [ ! -d "$platformDistPath/NITools.app" ]; then
+    echo "Error: NITools.app not found at $platformDistPath/NITools.app"
+    exit 1
+fi
+
+create-dmg \
+    --volname "NITools v$VERSION" \
+    --app-drop-link 600 185 \
+    --icon "NITools.app" 200 185 \
+    "$dmgPath" \
+    "$platformDistPath/NITools.app"
+
+# Clean up the intermediate .app bundle directory after DMG creation
+rm -rf "$platformDistPath"
