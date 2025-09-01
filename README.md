@@ -100,6 +100,15 @@ Mac users should expect additional setup or adjustments. Feel free to open a PR!
 
 ## 📦 Development
 
+### Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- **Python 3.13+**: Required for running the scripts.
+- **Conda**: Recommended for managing Python environments and dependencies, it is used in the build scripts.
+- **VS Code**: Recommended IDE for development and debugging (optional, but useful for quick start configurations).
+- **create-dmg**: For macOS executable bundling, install via [Homebrew](https://brew.sh): `brew install create-dmg`.
+
 ### Installation
 
 1. **Clone the repository:**
@@ -120,22 +129,13 @@ Mac users should expect additional setup or adjustments. Feel free to open a PR!
      conda activate nitools
      ```
 
-   - **Venv:**
-
-     ```powershell
-     python -m venv .venv
-     .\.venv\Scripts\Activate.ps1   # Windows
-     # source .venv/bin/activate    # macOS/Linux
-     pip install -r requirements.txt
-     ```
-
 3. **Install dependencies (if not using conda):**
 
 ```powershell
 pip install -r requirements.txt
 ```
 
-#### Overview
+### Overview
 
 | Layer    | Tool                      | Path                                               | Purpose                                                        |
 | -------- | ------------------------- | -------------------------------------------------- | -------------------------------------------------------------- |
@@ -147,7 +147,7 @@ pip install -r requirements.txt
 | CLI      | **Previews Build**        | `src/processors/previews/build_previews_json.py`   | Extract raw **preview metadata** into a JSON index.            |
 | CLI      | **Previews Process**      | `src/processors/previews/process_previews_json.py` | Process preview audio (trim silence, normalize, etc.).         |
 
-#### Quick Start (VS Code)
+### Quick Start (VS Code)
 
 1. **Run Launcher**
 
@@ -176,9 +176,9 @@ pip install -r requirements.txt
    - **Previews Build** → Builds `all_previews.json` from audio previews.
    - **Previews Process** → Processes `all_previews.json` into individual preview files.
 
-#### CLI Usage
+### CLI Usage
 
-##### 1. `build_groups_json.py`
+#### 1. `build_groups_json.py`
 
 Extracts **group/kit metadata** and outputs a combined JSON.
 
@@ -196,7 +196,7 @@ python src/processors/groups/build_groups_json.py <input_folder> <output_folder>
 python src/processors/groups/build_groups_json.py D:/Libraries/Native Instruments/ ./out/ false
 ```
 
-##### 2. `process_groups_json.py`
+#### 2. `process_groups_json.py`
 
 Processes **group JSON files** into cleaned/usable kits.
 
@@ -225,7 +225,7 @@ Options:
 python src/processors/groups/process_groups_json.py ./out/all_groups.json ./out/groups/ --trim_silence --normalize --enable_matrix --filter_pads --fill_blanks --fill_blanks_path resources/audio/.wav --sample_rate 44100 --bit_depth 24 --include_preview --skip_existing
 ```
 
-##### 3. `build_previews_json.py`
+#### 3. `build_previews_json.py`
 
 Extracts **audio preview metadata** and outputs a combined JSON.
 
@@ -241,7 +241,7 @@ python src/processors/previews/build_previews_json.py <output_folder>
 python src/processors/previews/build_previews_json.py ./out/
 ```
 
-##### 4. `process_previews_json.py`
+#### 4. `process_previews_json.py`
 
 Processes **preview JSON files** into cleaned/usable audio previews.
 
@@ -266,6 +266,33 @@ Options:
 ```powershell
 python src/processors/previews/process_previews_json.py ./out/all_previews.json ./out/previews/ --trim_silence --normalize --sample_rate 44100 --bit_depth 24 --skip_existing --skip_maschine_folders --skip_battery_kits --skip_native_browser_preview_library
 ```
+
+### Building Executables
+
+The project uses PyInstaller to bundle the application into standalone executables.
+The GitHub Actions workflow [create-release.yml](.github/workflows/create-release.yml) automates this process for releases.
+
+- **Windows:**
+  The `bundle_app_windows.ps1` PowerShell script is used.
+  For CI builds (like GitHub Actions), it's run with the `--ci` parameter:
+
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File .\bundle_app_windows.ps1 --ci
+  ```
+
+  To run locally, you can omit `--ci` or include it if you want to replicate the CI environment.
+
+- **macOS:**
+  The `bundle_app_macos.sh` bash script is used, which also leverages `create-dmg` to package the `.app` into a `.dmg` installer.
+  For CI builds, it's run with the target architecture and the `--ci` parameter:
+
+  ```bash
+  bash ./bundle_app_macos.sh x86_64 --ci # For Intel Macs
+  bash ./bundle_app_macos.sh arm64 --ci  # For Apple Silicon Macs
+  ```
+
+  To run locally, specify the desired architecture (`x86_64` or `arm64`) and you can omit `--ci`.
+  Ensure `create-dmg` is installed (`brew install create-dmg`) before running the macOS bundling script.
 
 ## 🤝 Contributing
 

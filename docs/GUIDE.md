@@ -19,8 +19,14 @@ The `NITools Launcher` is the central entry point for all GUI tools. It allows y
 To start the Launcher:
 
 - **Windows:** Double-click the `NITools.exe` executable (if using a pre-built release).
-- **macOS:** After extracting the downloaded `.zip` file, open a terminal, navigate to the extracted folder, and run `chmod +x "./NITools.app/Contents/MacOS/NITools"`. This will ensure the application has the necessary permissions and then launch it.
-- **From Source (Python):** Run `src/launcher.py` using your Python environment.
+- **macOS:** After downloading the `.dmg` file, open it and drag `NITools.app` to your Applications folder.
+
+  - If the app does not open: - Go to `System Settings` > `Privacy & Security` and press `Open Anyway`.
+  - If it still does not open, double-click the `fix.command` script located in the `.dmg` volume. Then, go to `System Settings` > `Privacy & Security` and press `Open Anyway` again. Finally, open the `NITools.app` from your Applications folder and, if prompted, go to `System Settings` > `Privacy & Security` and press `Open Anyway` one last time.
+
+    ![dmg allow script](img/dmg-allow-script.png)
+
+- **From Source (Python):** Run `rebuild_env.ps1` and `run.ps1` to setup a Conda environment environment and run the tool.
 
 Once launched, you will see the main window:
 
