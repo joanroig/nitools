@@ -110,7 +110,7 @@ jobs:
 
       - name: Bundle application (Windows)
         if: runner.os == 'Windows'
-        run: powershell -ExecutionPolicy Bypass -File .\bundle_app_windows.ps1
+        run: powershell -ExecutionPolicy Bypass -File .\bundle_app_windows.ps1 --ci
         shell: pwsh
 
       - name: Verify artifact exists (Windows)
@@ -125,7 +125,7 @@ jobs:
 
       - name: Bundle application (macOS)
         if: runner.os == 'macOS'
-        run: bash ./bundle_app_macos.sh ${{ matrix.target_arch }}
+        run: bash ./bundle_app_macos.sh ${{ matrix.target_arch }} --ci
         shell: bash
 
       - name: Verify artifact exists (macOS)

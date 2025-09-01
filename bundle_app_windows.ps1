@@ -1,3 +1,7 @@
+param(
+    [switch]$CI
+)
+
 # Enable fail-fast: stop execution immediately if any command fails
 $ErrorActionPreference = "Stop"
 
@@ -9,6 +13,12 @@ $PlatformDistPath = Join-Path $BaseDistPath "windows\NITools"
 # Ensure dist folder exists and remove old distribution
 Remove-Item $PlatformDistPath -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $PlatformDistPath -Force | Out-Null
+
+# Conditionally activate Conda environment
+if (-not $CI) {
+    Write-Host "Activating Conda environment 'nitools'..."
+    conda activate nitools
+}
 
 # Fetch version number from src/utils/version.py
 $VERSION = python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)" |
