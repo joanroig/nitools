@@ -172,9 +172,15 @@ class GroupsProcessor:
                             else:
                                 logger.warning(f"No valid file to fill blank pad {original_pad:02d}")
                 if self.include_preview:
-                    preview_dir = os.path.join(base_path, "Groups", "groups", ".previews")
-                    preview_file = os.path.join(preview_dir, group_name + ".mxgrp.ogg")
-                    if os.path.isfile(preview_file):
+                    preview_file_legacy = os.path.join(base_path, "Groups", "groups", ".previews", group_name + ".mxgrp.ogg")
+                    preview_file = os.path.join(base_path, "Groups", "kits", ".previews", group_name + ".mxgrp.ogg")
+                    if os.path.isfile(preview_file_legacy):
+                        preview_file = preview_file_legacy
+                    elif os.path.isfile(preview_file):
+                        preview_file = preview_file
+                    else:
+                        preview_file = None
+                    if preview_file:
                         preview_wav = os.path.join(group_folder, "Preview - " + group_name + ".wav")
                         if self.skip_existing and os.path.exists(preview_wav):
                             logger.info(f"Skipping existing preview file: {preview_wav}")
