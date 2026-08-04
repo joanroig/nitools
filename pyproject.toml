@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nitools"
+version = "1.0.0"
+description = "Native Instruments sample tools — kit and preview exporter."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+  "appdirs>=1.4.4",
+  "colorlog>=6.9.0",
+  "concurrent-log-handler>=0.9.28",
+  "markdown-pdf>=1.7",
+  "numpy>=2.2.6",
+  "pydantic>=2.11.7",
+  "pyinstaller>=6.15.0",
+  "PyQt6>=6.9.1,<6.10",
+  "PyQt6-Qt6>=6.9.0,<6.10",
+  "pyqtdarktheme-fork>=2.3.4",
+  "resampy>=0.4.3",
+  "soundfile>=0.13.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=9.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.uv]
+python-preference = "only-system"
+python-downloads = "never"
