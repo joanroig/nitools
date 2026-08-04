@@ -18,6 +18,11 @@ if [ "${2:-}" == "--ci" ]; then
     CI_MODE=true
 fi
 
+# Ensure uv is available
+if ! command -v uv >/dev/null 2>&1; then
+    echo "Error: uv was not found in PATH. Install uv from https://docs.astral.sh/uv/."
+    exit 1
+fi
 
 # Get target architecture from argument
 if [ -z "$TARGET_ARCH" ]; then
@@ -25,30 +30,26 @@ if [ -z "$TARGET_ARCH" ]; then
     exit 1
 fi
 
-# Conditionally activate Conda environment
-if [ "$CI_MODE" = false ]; then
-    echo "Activating Conda environment 'nitools'..."
-    # Initialize conda for the current shell session
-    # This assumes conda is installed and initialized for the shell
-    eval "$(conda shell.bash hook)"
-    conda activate nitools
-fi
+export PYTHONPATH="$root/src"
 
 # Define architecture-specific paths
 ARCH_SUFFIX="_${TARGET_ARCH}"
 # PyInstaller will create NITools.app inside this path
 platformDistPath="$baseDistPath/macos${ARCH_SUFFIX}" # e.g., dist/macos_x86_64
 
-# Ensure dist folder exists and remove old distribution for this architecture
+# Ensure dist/build folders are clean so PyInstaller does not reuse stale caches
 rm -rf "$platformDistPath"
+rm -rf "$root/build"
+rm -rf "$root/dist"
 mkdir -p "$platformDistPath"
 
 # Fetch version number from src/utils/version.py
-VERSION=$(python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)" | xargs)
+VERSION=$(uv run --project "$root" python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)" | xargs)
 
 # Run PyInstaller to bundle the app as a macOS .app
 # MACOSX_DEPLOYMENT_TARGET ensures compatibility with older macOS versions
-MACOSX_DEPLOYMENT_TARGET=11.0 python -m PyInstaller \
+MACOSX_DEPLOYMENT_TARGET=11.0 uv run --project "$root" python -m PyInstaller \
+    --clean \
     --noconfirm \
     --windowed \
     --add-data "resources:resources" \
@@ -62,7 +63,7 @@ MACOSX_DEPLOYMENT_TARGET=11.0 python -m PyInstaller \
 
 # Generate PDF guide next to the .app bundle for inclusion in DMG
 guidePath="$platformDistPath/nitools-guide.pdf" # Place guide directly in the dist folder
-python docs/makepdf.py docs/GUIDE.md "$guidePath"
+uv run --project "$root" python docs/makepdf.py docs/GUIDE.md "$guidePath"
 
 # Create helper script to remove quarantine attributes
 HELPER_SCRIPT_NAME="fix.command"

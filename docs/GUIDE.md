@@ -20,13 +20,12 @@ To start the Launcher:
 
 - **Windows:** Double-click the `NITools.exe` executable (if using a pre-built release).
 - **macOS:** After downloading the `.dmg` file, open it and drag `NITools.app` to your Applications folder.
-
   - If the app does not open: - Go to `System Settings` > `Privacy & Security` and press `Open Anyway`.
   - If it still does not open, double-click the `fix.command` script located in the `.dmg` volume. Then, go to `System Settings` > `Privacy & Security` and press `Open Anyway` again. Finally, open the `NITools.app` from your Applications folder and, if prompted, go to `System Settings` > `Privacy & Security` and press `Open Anyway` one last time.
 
     ![dmg allow script](img/dmg-allow-script.png)
 
-- **From Source (Python):** Run `rebuild_env.ps1` and `run.ps1` to setup a Conda environment environment and run the tool.
+- **From Source (Python):** Run `uv sync --upgrade` and `run.ps1` to create the project environment with `uv` and launch the tool.
 
 Once launched, you will see the main window:
 

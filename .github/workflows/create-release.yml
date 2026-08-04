@@ -37,7 +37,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install dependencies
-        run: python -m pip install -r requirements.txt --upgrade
+        run: python -m pip install --upgrade pip && python -m pip install .
 
       - name: Determine Version and Tag
         id: set_version
@@ -95,8 +95,12 @@ jobs:
           python-version: "3.13"
           architecture: ${{ matrix.python_arch }}
 
+      - name: Install uv
+        run: python -m pip install uv
+        shell: bash
+
       - name: Install dependencies
-        run: python -m pip install -r requirements.txt --upgrade
+        run: python -m pip install --upgrade pip && python -m pip install .
 
       - name: Install PyInstaller (macOS)
         if: runner.os == 'macOS'

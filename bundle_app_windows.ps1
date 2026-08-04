@@ -16,8 +16,10 @@ $env:PYTHONPATH = (Join-Path $repoDir "src")
 $BaseDistPath = Join-Path $repoDir "dist"
 $PlatformDistPath = Join-Path $BaseDistPath "windows\NITools"
 
-# Ensure dist folder exists and remove old distribution
+# Ensure dist/build folders are clean so PyInstaller does not reuse stale caches
 Remove-Item $PlatformDistPath -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item (Join-Path $repoDir "build") -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item (Join-Path $repoDir "dist") -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $PlatformDistPath -Force | Out-Null
 
 # Fetch version number from src/utils/version.py
@@ -26,6 +28,7 @@ $VERSION = & uv run --project $repoDir python -c "from utils.version import APP_
 
 # Run PyInstaller to bundle the app as a single Windows .exe
 & uv run --project $repoDir python -m PyInstaller `
+    --clean `
     --noconfirm `
     --onefile `
     --noconsole `

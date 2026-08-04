@@ -105,7 +105,7 @@ Mac users should expect additional setup or adjustments. Feel free to open a PR!
 Before you begin, ensure you have the following installed:
 
 - **Python 3.13+**: Required for running the scripts.
-- **Conda**: Recommended for managing Python environments and dependencies, it is used in the build scripts.
+- **uv**: Recommended for creating and syncing the project environment from [pyproject.toml](pyproject.toml).
 - **VS Code**: Recommended IDE for development and debugging (optional, but useful for quick start configurations).
 - **create-dmg**: For macOS executable bundling, install via [Homebrew](https://brew.sh): `brew install create-dmg`.
 
@@ -118,21 +118,16 @@ Before you begin, ensure you have the following installed:
    cd nitools
    ```
 
-2. **Set up a Python environment (recommended):**
+2. **Set up a Python environment with uv:**
 
-   - **Conda (recommended):**
+   ```powershell
+   uv sync --upgrade
+   ```
 
-     Use the script [rebuild_env.ps1](rebuild_env.ps1), or manually execute:
-
-     ```powershell
-     conda env create -f environment.yml
-     conda activate nitools
-     ```
-
-3. **Install dependencies (if not using conda):**
+3. **Install the package in editable mode (optional, if you want the CLI/GUI entry points available):**
 
 ```powershell
-pip install -r requirements.txt
+uv pip install -e .
 ```
 
 ### Overview
@@ -150,12 +145,10 @@ pip install -r requirements.txt
 ### Quick Start (VS Code)
 
 1. **Run Launcher**
-
    - Open **Run and Debug** → **"GUI: Launcher"**
    - Runs `src/launcher.py` which can start the GUI tools.
 
 2. **Run GUI Tools Independently**
-
    - **Groups Exporter GUI**
      - Run config: **"GUI: Groups Exporter"**
      - Runs `src/apps/groups_exporter_gui.py`
@@ -170,7 +163,6 @@ pip install -r requirements.txt
 3. **Run CLI Tools**
 
    There are 4 CLI processors that can be launched directly (the GUIs internally call these):
-
    - **Groups Build** → Builds `all_groups.json` from library kits.
    - **Groups Process** → Processes `all_groups.json` into individual kits.
    - **Previews Build** → Builds `all_previews.json` from audio previews.
