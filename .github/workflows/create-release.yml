@@ -73,7 +73,7 @@ jobs:
             python_arch: x64
             artifact_suffix: ""
             target_arch: "" # Not used for Windows
-          - runner_label: macos-13
+          - runner_label: macos-26-intel
             python_arch: x64
             artifact_suffix: "_x86_64"
             target_arch: x86_64
@@ -94,6 +94,14 @@ jobs:
         with:
           python-version: "3.13"
           architecture: ${{ matrix.python_arch }}
+
+      - name: Install LLVM (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install llvm
+          echo "LLVM_DIR=$(brew --prefix llvm)/lib/cmake/llvm" >> "$GITHUB_ENV"
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix llvm):$CMAKE_PREFIX_PATH" >> "$GITHUB_ENV"
+        shell: bash
 
       - name: Install dependencies
         run: python -m pip install -r requirements.txt --upgrade
