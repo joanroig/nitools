@@ -18,6 +18,24 @@ if (-not (Test-Path $pyprojectPath)) {
 
 $latestVersionCache = @{}
 
+function Normalize-PyprojectEncoding {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $hasBom = $bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF
+
+    if (-not $hasBom) {
+        return
+    }
+
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    $text = [System.IO.File]::ReadAllText($Path, [System.Text.UTF8Encoding]::new($true))
+    [System.IO.File]::WriteAllText($Path, $text, $utf8NoBom)
+}
+
 function Get-CanonicalName {
     param(
         [Parameter(Mandatory = $true)]
@@ -136,6 +154,7 @@ function Update-PyprojectFile {
 }
 
 $changed = Update-PyprojectFile -Path $pyprojectPath
+Normalize-PyprojectEncoding -Path $pyprojectPath
 
 if ($changed) {
     Write-Host "Dependency manifest updated."

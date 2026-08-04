@@ -1,8 +1,8 @@
 import os
 
 import numpy as np
-import resampy
 import soundfile as sf
+import soxr
 
 
 def trim_and_normalize_wav(
@@ -37,7 +37,9 @@ def trim_and_normalize_wav(
 
     # Resample if needed
     if sample_rate and sr != sample_rate:
-        data = np.array([resampy.resample(ch, sr, sample_rate) for ch in data])
+        # soxr efficiently processes multi-channel audio, expecting (samples, channels).
+        # We transpose data.T for the function, then transpose .T back to (channels, samples).
+        data = soxr.resample(data.T, sr, sample_rate).T
         sr = sample_rate
 
     # Determine subtype
