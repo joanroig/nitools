@@ -33,6 +33,7 @@ $VERSION = & uv run --project $repoDir python -c "from utils.version import APP_
     --onefile `
     --noconsole `
     --add-data "resources;resources" `
+    --add-data "pyproject.toml;." `
     --icon=icons/app.ico `
     ./src/launcher.py `
     -n "NITools" `

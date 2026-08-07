@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
-# This script is used by the GitHub Action defined in .github/workflows/create-release.yml
-# It automatically bumps the application version based on the specified bump type.
+"""Bump the version in place and print the new one. Used by create-release.yml.
 
-import os
+    python bump_version.py --file pyproject.toml --bump patch --variable version
+"""
+
+import argparse
+import re
 import sys
+from pathlib import Path
 from typing import Literal
 
-VERSION_FILE = os.path.join(os.path.dirname(__file__), "src", "utils", "version.py")
-
 BUMP_TYPE = Literal["patch", "minor", "major"]
+
+DEFAULT_FILE = "pyproject.toml"
+DEFAULT_VARIABLE = "version"
+
 
 def bump_version(version: str, bump: BUMP_TYPE) -> str:
     parts = version.split(".")
@@ -28,27 +34,47 @@ def bump_version(version: str, bump: BUMP_TYPE) -> str:
         raise ValueError(f"Unknown bump type: {bump}")
     return f"{major}.{minor}.{patch}"
 
-def main():
-    if len(sys.argv) != 2:
-        print("Usage: python bump_version.py [patch|minor|major]", file=sys.stderr)
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Bump a semantic version assignment in a file.")
+    parser.add_argument("--file", default=DEFAULT_FILE, help=f"File holding the version (default: {DEFAULT_FILE})")
+    parser.add_argument("--bump", required=True, choices=["patch", "minor", "major"], help="Type of version bump")
+    parser.add_argument("--variable", default=DEFAULT_VARIABLE, help=f"Name of the version assignment (default: {DEFAULT_VARIABLE})")
+    args = parser.parse_args()
+
+    path = Path(args.file)
+    if not path.is_absolute():
+        path = Path(__file__).parent / path
+
+    try:
+        # newline="" keeps the original line endings intact on the round-trip
+        with path.open("r", encoding="utf-8", newline="") as f:
+            content = f.read()
+    except OSError as e:
+        print(f"Could not read {path}: {e}", file=sys.stderr)
         sys.exit(1)
-    bump = sys.argv[1]
-    with open(VERSION_FILE, "r", encoding="utf-8") as f:
-        lines = f.readlines()
-    new_lines = []
-    new_version = None
-    for line in lines:
-        if line.strip().startswith("APP_VERSION ="):
-            old_version = line.split("=")[1].strip().strip('"')
-            new_version = bump_version(old_version, bump)
-            new_lines.append(f'APP_VERSION = "{new_version}"\n')
-        else:
-            new_lines.append(line)
-    if new_version is None:
-        print("APP_VERSION not found in version.py", file=sys.stderr)
+
+    # Matches both `version = "1.2.3"` (TOML) and `APP_VERSION = "1.2.3"` (Python)
+    pattern = re.compile(
+        rf'^(?P<prefix>\s*{re.escape(args.variable)}\s*=\s*)(?P<quote>["\'])(?P<version>[^"\']+)(?P=quote)',
+        re.MULTILINE,
+    )
+    match = pattern.search(content)
+    if match is None:
+        print(f"'{args.variable}' assignment not found in {path}", file=sys.stderr)
         sys.exit(1)
-    with open(VERSION_FILE, "w", encoding="utf-8") as f:
-        f.writelines(new_lines)
+
+    try:
+        new_version = bump_version(match.group("version"), args.bump)
+    except ValueError as e:
+        print(e, file=sys.stderr)
+        sys.exit(1)
+
+    replacement = f'{match.group("prefix")}{match.group("quote")}{new_version}{match.group("quote")}'
+    content = content[: match.start()] + replacement + content[match.end():]
+    with path.open("w", encoding="utf-8", newline="") as f:
+        f.write(content)
+
     print(new_version)
 
 

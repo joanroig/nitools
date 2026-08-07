@@ -53,6 +53,7 @@ MACOSX_DEPLOYMENT_TARGET=11.0 uv run --project "$root" python -m PyInstaller \
     --noconfirm \
     --windowed \
     --add-data "resources:resources" \
+    --add-data "pyproject.toml:." \
     --icon=icons/app.icns \
     --target-arch "$TARGET_ARCH" \
     ./src/launcher.py \

@@ -1,3 +1,9 @@
+from processors.groups.build_groups_json import GroupsJsonBuilder
+from utils.worker_utils import WorkerThread
+from utils.style_utils import apply_style
+from utils.bundle_utils import get_bundled_path
+from utils import config_utils
+from processors.groups.process_groups_json import GroupsProcessor
 import json
 import os
 import sys
@@ -8,17 +14,12 @@ from PyQt6.QtWidgets import QMessageBox
 from components.ansi_text_edit import AnsiTextEdit
 from components.bottom_banner import BottomBanner
 from components.matrix_editor import MatrixEditor
+from components.no_wheel_combo_box import NoWheelComboBox
 from components.pad_filter_editor import PadFilterEditor
 from components.resizable_log_splitter import ResizableLogSplitter
 from dialogs.error_dialog import ErrorDialog
 from dialogs.export_complete_dialog import show_export_complete_dialog
 from models.config import Config
-from processors.groups.build_groups_json import GroupsJsonBuilder
-from processors.groups.process_groups_json import GroupsProcessor
-from utils import config_utils
-from utils.bundle_utils import get_bundled_path
-from utils.style_utils import apply_style
-from utils.worker_utils import WorkerThread
 
 
 class GroupsExporterGUI(QtWidgets.QDialog):
@@ -150,12 +151,19 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         self.normalize.setToolTip('If checked, audio samples will be normalized to a standard loudness level.')
         self.include_preview = QtWidgets.QCheckBox('Include preview samples')
         self.include_preview.setToolTip('If checked, a short preview sample will be generated for each group.')
-        self.sample_rate = QtWidgets.QLineEdit()
-        self.sample_rate.setPlaceholderText('Sample rate (e.g. 48000)')
-        self.sample_rate.setToolTip('Set the sample rate for exported audio (e.g., 44100, 48000). Leave blank for original.')
-        self.bit_depth = QtWidgets.QLineEdit()
-        self.bit_depth.setPlaceholderText('Bit depth (e.g. 16)')
-        self.bit_depth.setToolTip('Set the bit depth for exported audio (e.g., 16, 24). Leave blank for original.')
+        self.sample_rate = NoWheelComboBox()
+        self.sample_rate.addItem('Keep Original', '')
+        self.sample_rate.addItem('44100 Hz', '44100')
+        self.sample_rate.addItem('48000 Hz (Recommended)', '48000')
+        self.sample_rate.setToolTip('Sample rate for export.')
+        self.bit_depth = NoWheelComboBox()
+        self.bit_depth.addItem('Keep Original', '')
+        self.bit_depth.addItem('8-bit', '8')
+        self.bit_depth.addItem('16-bit (Recommended)', '16')
+        self.bit_depth.addItem('24-bit', '24')
+        self.bit_depth.addItem('32-bit (Warning: SP 404 MK2 does not read 32-bit)', '32')
+        self.bit_depth.setCurrentIndex(2)
+        self.bit_depth.setToolTip('Bit depth for export.')
         options_layout.addWidget(self.skip_existing)
         options_layout.addWidget(self.trim_silence)
         options_layout.addWidget(self.normalize)
@@ -326,6 +334,8 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         ]:
             if isinstance(widget, QtWidgets.QLineEdit):
                 widget.textChanged.connect(lambda val, k=key: self.on_config_changed(k, val))
+            elif isinstance(widget, QtWidgets.QComboBox):
+                widget.currentIndexChanged.connect(lambda _, k=key, w=widget: self.on_config_changed(k, w.currentData()))
             elif isinstance(widget, QtWidgets.QCheckBox):
                 widget.stateChanged.connect(lambda val, k=key, w=widget: self.on_config_changed(k, w.isChecked()))
             elif isinstance(widget, QtWidgets.QPushButton) and widget.isCheckable():
@@ -348,17 +358,33 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         self.config.groups_exporter.pad_filter_config = self.pad_filter_editor.get_pad_filter()
         config_utils.save_config(self.config)
 
+    def normalize_path(self, path: str) -> str:
+        return os.path.normpath(path) if path else path
+
     def load_config_to_ui(self):
         c = self.config.groups_exporter
-        self.input_folder.setText(c.input_folder)
-        self.output_folder.setText(c.output_folder)
+        self.input_folder.setText(self.normalize_path(c.input_folder))
+        self.output_folder.setText(self.normalize_path(c.output_folder))
         self.generate_txt.setChecked(c.generate_txt)
-        self.json_path.setText(c.json_path)
-        self.proc_output_folder.setText(c.proc_output_folder)
+        self.json_path.setText(self.normalize_path(c.json_path))
+        self.proc_output_folder.setText(self.normalize_path(c.proc_output_folder))
         self.trim_silence.setChecked(c.trim_silence)
         self.normalize.setChecked(c.normalize)
-        self.sample_rate.setText(c.sample_rate)
-        self.bit_depth.setText(c.bit_depth)
+        saved_sample_rate = c.sample_rate if c.sample_rate else ''
+        for index in range(self.sample_rate.count()):
+            if self.sample_rate.itemData(index) == saved_sample_rate:
+                self.sample_rate.setCurrentIndex(index)
+                break
+        else:
+            self.sample_rate.setCurrentIndex(0)
+
+        saved_bit_depth = c.bit_depth if c.bit_depth else ''
+        for index in range(self.bit_depth.count()):
+            if self.bit_depth.itemData(index) == saved_bit_depth:
+                self.bit_depth.setCurrentIndex(index)
+                break
+        else:
+            self.bit_depth.setCurrentIndex(0)
         self.skip_existing.setChecked(c.skip_existing)
         self.enable_matrix.setChecked(c.enable_matrix)
         self.matrix_editor.set_matrix(self.config.groups_exporter.matrix_config)
@@ -474,19 +500,21 @@ class GroupsExporterGUI(QtWidgets.QDialog):
             return
 
         sample_rate_val = None
-        if self.sample_rate.text().strip():
+        sample_rate_value = self.sample_rate.currentData()
+        if sample_rate_value:
             try:
-                sample_rate_val = int(self.sample_rate.text().strip())
+                sample_rate_val = int(sample_rate_value)
             except ValueError:
-                QMessageBox.warning(self, "Input Error", "Sample rate must be an integer.")
+                QMessageBox.warning(self, "Input Error", "Sample rate must be a valid value.")
                 return
 
         bit_depth_val = None
-        if self.bit_depth.text().strip():
+        bit_depth_value = self.bit_depth.currentData()
+        if bit_depth_value:
             try:
-                bit_depth_val = int(self.bit_depth.text().strip())
+                bit_depth_val = int(bit_depth_value)
             except ValueError:
-                QMessageBox.warning(self, "Input Error", "Bit depth must be an integer.")
+                QMessageBox.warning(self, "Input Error", "Bit depth must be a valid value.")
                 return
 
         fill_blanks_path_val = None

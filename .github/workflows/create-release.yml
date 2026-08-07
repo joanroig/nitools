@@ -46,9 +46,9 @@ jobs:
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
           if [ "${{ github.event.inputs.version_bump }}" != "none" ]; then
-            # Bump version
-            new_version=$(python bump_version.py ${{ github.event.inputs.version_bump }})
-            git add src/utils/version.py
+            # Bump version in pyproject.toml (the single source of truth)
+            new_version=$(python bump_version.py --file pyproject.toml --bump ${{ github.event.inputs.version_bump }} --variable version)
+            git add pyproject.toml
             git commit -m "Bump version to $new_version" || echo "No changes to commit"
             git push origin ${{ github.ref_name }}
             version=$new_version

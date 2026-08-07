@@ -21,6 +21,8 @@ MERGED_EXPANSIONS = {
 
 EXCLUDED_EXPANSIONS = {}  # Add problematic expansions to exclude here, e.g. {"Maschine 2": "Maschine 2 Factory Library"}
 
+NBSP = "\u00a0"
+
 
 def try_decompress(data: bytes) -> bytes:
     """Try to decompress data using zlib. Return original data on failure."""
@@ -75,14 +77,16 @@ def find_expansion_name(lines: list[str], folder_two_levels_up: str = None) -> s
                 if line1 == line2:
                     return line1
                 else:
-                    logger.warning(f"Lines after 'serialization::archive' differ: '{line1}' != '{line2}'")
+                    message = f"Lines after 'serialization::archive' differ: '{line1}' != '{line2}'"
                     if folder_two_levels_up:
+                        # Many archives just have no duplicated name header, and the folder name is a reliable fallback, so this is routine
+                        logger.debug(message)
                         folder_name = os.path.basename(folder_two_levels_up).strip()
                         if folder_name.endswith("Library"):
                             folder_name = folder_name[:-len("Library")].strip()
                         return folder_name
-                    else:
-                        return "UnknownExpansion"
+                    logger.warning(f"{message} - no folder to fall back on")
+                    return "UnknownExpansion"
             else:
                 return "UnknownExpansion"
     return None
@@ -113,7 +117,9 @@ def classify_samples(lines: list[str], group_name: str, expansion_name: str) -> 
             if stripped.startswith("Samples/") or stripped.startswith("//Samples/") or (
                 len(stripped) > 1 and stripped[1:].startswith("Samples/")
             ):
-                merged_lines.append(line + lines[i + 1])
+                # Paths only split here because the ASCII scan dropped a byte,
+                # which in practice is a no-break space in the file name
+                merged_lines.append(line + NBSP + lines[i + 1])
                 skip_next = True
                 continue
 
