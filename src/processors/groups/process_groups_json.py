@@ -181,7 +181,7 @@ class GroupsProcessor:
                     else:
                         preview_file = None
                     if preview_file:
-                        preview_wav = os.path.join(group_folder, "Preview - " + group_name + ".wav")
+                        preview_wav = os.path.join(group_folder, "00_PREVIEW - " + group_name + ".wav")
                         if self.skip_existing and os.path.exists(preview_wav):
                             logger.info(f"Skipping existing preview file: {preview_wav}")
                             continue

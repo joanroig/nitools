@@ -4,6 +4,9 @@ import numpy as np
 import soundfile as sf
 import soxr
 
+# Below this is a noise floor, not content: normalizing would raise it to full scale
+SILENCE_PEAK = 10 ** (-60 / 20)  # -60 dBFS
+
 
 def trim_and_normalize_wav(
     input_path: str,
@@ -18,8 +21,8 @@ def trim_and_normalize_wav(
     info = sf.info(input_path)
     data = data.T  # shape: (channels, samples)
 
-    # Only process if audio is not completely silent
-    if np.any(np.abs(data) > 0):
+    # Only process if audio carries actual content rather than a noise floor
+    if data.size and np.max(np.abs(data)) > SILENCE_PEAK:
         if trim_silence:
             # Compute RMS per frame across channels
             rms = np.sqrt(np.mean(data**2, axis=0))
