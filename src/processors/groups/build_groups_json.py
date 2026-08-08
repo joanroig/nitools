@@ -117,8 +117,7 @@ def classify_samples(lines: list[str], group_name: str, expansion_name: str) -> 
             if stripped.startswith("Samples/") or stripped.startswith("//Samples/") or (
                 len(stripped) > 1 and stripped[1:].startswith("Samples/")
             ):
-                # Paths only split here because the ASCII scan dropped a byte,
-                # which in practice is a no-break space in the file name
+                # Paths only split here because the ASCII scan dropped a byte, which in practice is a no-break space in the file name
                 merged_lines.append(line + NBSP + lines[i + 1])
                 skip_next = True
                 continue
@@ -282,10 +281,15 @@ def process_mxgrp_file(input_file: str, output_folder: str, generate_txt: bool =
 
     group_path = find_group_path(input_file)
 
+    # The preview sits in a .previews folder next to the .mxgrp, whatever depth the library nests its groups at
+    preview = os.path.join(os.path.dirname(abs_input_path), ".previews", os.path.basename(input_file) + ".ogg")
+    preview_rel = os.path.relpath(preview, group_path).replace("\\", "/") if os.path.isfile(preview) else None
+
     group_info = {
         "group": group_name.strip(),
         "expansion": expansion_name,
         "path": group_path,
+        "preview": preview_rel,
         "samples": sample_data,
         "txt_file": output_filepath,
     }
