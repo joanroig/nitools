@@ -1,0 +1,629 @@
+import json
+import os
+import sys
+
+from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6.QtWidgets import QMessageBox
+
+from components.ansi_text_edit import AnsiTextEdit
+from components.bottom_banner import BottomBanner
+from components.matrix_editor import MatrixEditor
+from components.no_wheel_combo_box import NoWheelComboBox
+from components.pad_filter_editor import PadFilterEditor
+from components.resizable_log_splitter import ResizableLogSplitter
+from dialogs.error_dialog import ErrorDialog
+from dialogs.export_complete_dialog import show_export_complete_dialog
+from models.config import Config
+from processors.kits.build_kits_json import KitsJsonBuilder
+from processors.kits.process_kits_json import KitsProcessor
+from utils import config_utils
+from utils.bundle_utils import get_bundled_path
+from utils.style_utils import apply_style
+from utils.worker_utils import WorkerThread
+
+
+class KitsExporterGUI(QtWidgets.QDialog):
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowIcon(QtGui.QIcon(get_bundled_path("resources/icons/kits.png")))
+        self.setWindowTitle("NITools - Kits Exporter")
+        self.setMinimumWidth(800)
+        self.setMinimumHeight(600)
+        self.setWindowFlags(self.windowFlags() | QtCore.Qt.WindowType.WindowMaximizeButtonHint)
+        self.config: Config = config_utils.load_config()
+        apply_style(self.config.style)
+        self.worker = None
+        self.progress_dialog = None
+        self.cancelled = False
+        self.has_output = False
+        self.last_built_json_path = None
+        self.init_ui()
+        self.load_config_to_ui()
+
+        if self.config.kits_exporter.width > 0 and self.config.kits_exporter.height > 0:
+            self.resize(self.config.kits_exporter.width, self.config.kits_exporter.height)
+
+        if self.json_path.text().strip() and os.path.isfile(self.json_path.text().strip()):
+            self.tabs.setCurrentIndex(1)
+
+    def init_ui(self):
+        main_layout = QtWidgets.QVBoxLayout()
+        self.tabs = QtWidgets.QTabWidget()
+
+        # ── Tab 1: Process kits ──────────────────────────────────────────────
+        self.tab_process = QtWidgets.QWidget()
+        process_layout = QtWidgets.QVBoxLayout()
+
+        step1_label = QtWidgets.QLabel("Step 1: Build JSON from .nbkt")
+        step1_label.setStyleSheet("font-weight: bold;")
+        process_layout.addWidget(step1_label)
+
+        scroll_content = QtWidgets.QWidget()
+        build_layout = QtWidgets.QFormLayout(scroll_content)
+
+        self.input_folder = QtWidgets.QLineEdit()
+        self.input_folder.setToolTip("Select the folder containing your .nbkt Battery kit files.")
+        self.input_folder.setPlaceholderText(
+            "e.g., C:/Users/YourName/Documents/Native Instruments/Battery 4/Presets"
+        )
+        self.input_folder_btn = QtWidgets.QPushButton("Choose")
+        self.input_folder_btn.clicked.connect(self.choose_input_folder)
+        input_folder_layout = QtWidgets.QHBoxLayout()
+        input_folder_layout.addWidget(self.input_folder)
+        input_folder_layout.addWidget(self.input_folder_btn)
+        build_layout.addRow("Input folder:", input_folder_layout)
+
+        self.output_folder = QtWidgets.QLineEdit()
+        self.output_folder.setToolTip("Select the folder where the generated JSON and optional TXT files will be saved.")
+        self.output_folder.setPlaceholderText("e.g., C:/Users/YourName/Documents/NITools/KitsJSON")
+        self.output_folder_btn = QtWidgets.QPushButton("Choose")
+        self.output_folder_btn.clicked.connect(self.choose_output_folder)
+        output_folder_layout = QtWidgets.QHBoxLayout()
+        output_folder_layout.addWidget(self.output_folder)
+        output_folder_layout.addWidget(self.output_folder_btn)
+        build_layout.addRow("Output folder:", output_folder_layout)
+
+        self.generate_txt = QtWidgets.QCheckBox("Generate TXT files")
+        self.generate_txt.setToolTip(
+            "If checked, a .txt file is generated for each kit listing the extracted sample names — useful for debugging."
+        )
+        build_layout.addRow("", self.generate_txt)
+
+        scroll_area_process = QtWidgets.QScrollArea()
+        scroll_area_process.setWidgetResizable(True)
+        scroll_area_process.setWidget(scroll_content)
+        process_layout.addWidget(scroll_area_process)
+
+        self.run_build_btn = QtWidgets.QPushButton("Process Kits")
+        self.run_build_btn.clicked.connect(self.run_build_json)
+        self.run_build_btn.setProperty("class", "accent")
+        process_layout.addWidget(self.run_build_btn)
+
+        self.tab_process.setLayout(process_layout)
+        self.tabs.addTab(self.tab_process, "Process Kits")
+
+        # ── Tab 2: Export kits ───────────────────────────────────────────────
+        self.tab_export = QtWidgets.QWidget()
+        export_layout = QtWidgets.QVBoxLayout()
+
+        step2_label = QtWidgets.QLabel("Step 2: Export Kits")
+        step2_label.setStyleSheet("font-weight: bold;")
+        export_layout.addWidget(step2_label)
+
+        scrollable_content_export = QtWidgets.QWidget()
+        scrollable_content_export_layout = QtWidgets.QVBoxLayout()
+
+        export_form_layout = QtWidgets.QFormLayout()
+
+        self.json_path = QtWidgets.QLineEdit()
+        self.json_path.setToolTip("Select the JSON file generated in Step 1 (e.g., all_kits.json).")
+        self.json_path.setPlaceholderText(
+            "e.g., C:/Users/YourName/Documents/NITools/KitsJSON/all_kits.json"
+        )
+        self.json_path_btn = QtWidgets.QPushButton("Choose")
+        self.json_path_btn.clicked.connect(self.choose_json_file)
+        json_path_layout = QtWidgets.QHBoxLayout()
+        json_path_layout.addWidget(self.json_path)
+        json_path_layout.addWidget(self.json_path_btn)
+        export_form_layout.addRow("JSON file:", json_path_layout)
+
+        self.proc_output_folder = QtWidgets.QLineEdit()
+        self.proc_output_folder.setToolTip(
+            "Select the folder where the exported kit samples will be saved."
+        )
+        self.proc_output_folder.setPlaceholderText(
+            "e.g., C:/Users/YourName/Documents/NITools/ExportedKits"
+        )
+        self.proc_output_folder_btn = QtWidgets.QPushButton("Choose")
+        self.proc_output_folder_btn.clicked.connect(self.choose_proc_output_folder)
+        proc_output_folder_layout = QtWidgets.QHBoxLayout()
+        proc_output_folder_layout.addWidget(self.proc_output_folder)
+        proc_output_folder_layout.addWidget(self.proc_output_folder_btn)
+        export_form_layout.addRow("Output folder:", proc_output_folder_layout)
+
+        # Options group
+        options_group = QtWidgets.QGroupBox("Options")
+        options_layout = QtWidgets.QVBoxLayout()
+        self.skip_existing = QtWidgets.QCheckBox("Skip already processed")
+        self.skip_existing.setToolTip(
+            "If checked, samples that already exist in the output folder will be skipped."
+        )
+        self.trim_silence = QtWidgets.QCheckBox("Trim silence")
+        self.trim_silence.setToolTip("If checked, leading and trailing silence will be removed from samples.")
+        self.normalize = QtWidgets.QCheckBox("Normalize")
+        self.normalize.setToolTip("If checked, audio samples will be normalized to a standard loudness level.")
+        self.include_preview = QtWidgets.QCheckBox("Include preview samples")
+        self.include_preview.setToolTip("If checked, a short preview sample will be generated for each kit.")
+        self.replace_missing = QtWidgets.QCheckBox("Replace missing samples")
+        self.replace_missing.setToolTip(
+            "If checked, when a sample file cannot be found on disk the exporter picks the "
+            "closest-matching .wav from the same kit's Samples folder based on filename similarity."
+        )
+        self.sample_rate = NoWheelComboBox()
+        self.sample_rate.addItem('Keep Original', '')
+        self.sample_rate.addItem('44100 Hz', '44100')
+        self.sample_rate.addItem('48000 Hz (Recommended)', '48000')
+        self.sample_rate.setToolTip(
+            "Sample rate for export."
+        )
+        self.bit_depth = NoWheelComboBox()
+        self.bit_depth.addItem('Keep Original', '')
+        self.bit_depth.addItem('8-bit', '8')
+        self.bit_depth.addItem('16-bit (Recommended)', '16')
+        self.bit_depth.addItem('24-bit', '24')
+        self.bit_depth.addItem('32-bit (Warning: SP 404 MK2 does not read 32-bit)', '32')
+        self.bit_depth.setCurrentIndex(2)
+        self.bit_depth.setToolTip(
+            "Bit depth for export."
+        )
+        options_layout.addWidget(self.skip_existing)
+        options_layout.addWidget(self.trim_silence)
+        options_layout.addWidget(self.normalize)
+        options_layout.addWidget(self.include_preview)
+        options_layout.addWidget(self.replace_missing)
+        options_layout.addWidget(QtWidgets.QLabel("Sample rate:"))
+        options_layout.addWidget(self.sample_rate)
+        options_layout.addWidget(QtWidgets.QLabel("Bit depth:"))
+        options_layout.addWidget(self.bit_depth)
+        options_group.setLayout(options_layout)
+        export_form_layout.addRow(options_group)
+
+        # Pad Reorder Matrix group
+        matrix_group = QtWidgets.QGroupBox("Pad Reorder Matrix (4x4)")
+        matrix_layout = QtWidgets.QVBoxLayout()
+        self.enable_matrix = QtWidgets.QCheckBox("Enable matrix reorder")
+        self.enable_matrix.setToolTip("If checked, pads will be reordered according to the matrix below.")
+        self.matrix_toggle_btn = QtWidgets.QPushButton("Show Matrix")
+        self.matrix_toggle_btn.setToolTip("Toggle the visibility of the pad reorder matrix editor.")
+        self.matrix_editor = MatrixEditor()
+        self.matrix_editor.setVisible(False)
+        self.matrix_toggle_btn.setCheckable(True)
+        self.matrix_toggle_btn.setChecked(False)
+        self.matrix_toggle_btn.toggled.connect(
+            lambda checked: self.matrix_editor.setVisible(checked)
+        )
+        self.matrix_toggle_btn.toggled.connect(
+            lambda checked: self.matrix_toggle_btn.setText("Hide Matrix" if checked else "Show Matrix")
+        )
+        matrix_layout.addWidget(self.enable_matrix)
+        matrix_layout.addWidget(self.matrix_toggle_btn)
+        matrix_layout.addWidget(self.matrix_editor)
+        matrix_group.setLayout(matrix_layout)
+        export_form_layout.addRow(matrix_group)
+
+        # Pad Filter group
+        pad_filter_group = QtWidgets.QGroupBox("Pad Filter Keywords")
+        pad_filter_layout = QtWidgets.QVBoxLayout()
+        self.filter_pads = QtWidgets.QCheckBox("Enable pad filtering")
+        self.filter_pads.setToolTip(
+            "If checked, only kits where every pad matches at least one of its keywords will be included."
+        )
+        self.pad_filter_toggle_btn = QtWidgets.QPushButton("Show Pad Filter Editor")
+        self.pad_filter_toggle_btn.setToolTip("Toggle the visibility of the pad filter editor.")
+        self.pad_filter_editor = PadFilterEditor()
+        self.pad_filter_editor.setVisible(False)
+        self.pad_filter_toggle_btn.setCheckable(True)
+        self.pad_filter_toggle_btn.setChecked(False)
+        self.pad_filter_toggle_btn.toggled.connect(
+            lambda checked: self.pad_filter_editor.setVisible(checked)
+        )
+        self.pad_filter_toggle_btn.toggled.connect(
+            lambda checked: self.pad_filter_toggle_btn.setText(
+                "Hide Pad Filter Editor" if checked else "Show Pad Filter Editor"
+            )
+        )
+        pad_filter_layout.addWidget(self.filter_pads)
+        pad_filter_layout.addWidget(self.pad_filter_toggle_btn)
+        pad_filter_layout.addWidget(self.pad_filter_editor)
+        pad_filter_group.setLayout(pad_filter_layout)
+        export_form_layout.addRow(pad_filter_group)
+
+        scrollable_content_export_layout.addLayout(export_form_layout)
+        scrollable_content_export.setLayout(scrollable_content_export_layout)
+        scroll_area_export = QtWidgets.QScrollArea()
+        scroll_area_export.setWidgetResizable(True)
+        scroll_area_export.setWidget(scrollable_content_export)
+        export_layout.addWidget(scroll_area_export)
+
+        self.run_process_btn = QtWidgets.QPushButton("Export Kits")
+        self.run_process_btn.clicked.connect(self.run_process_py)
+        self.run_process_btn.setProperty("class", "accent")
+        export_layout.addWidget(self.run_process_btn)
+        self.tab_export.setLayout(export_layout)
+        self.tabs.addTab(self.tab_export, "Export Kits")
+
+        # Log/output
+        self.log_output = AnsiTextEdit()
+        self.log_output.setReadOnly(True)
+
+        splitter = ResizableLogSplitter(self.config, self.tabs, self.log_output)
+        main_layout.addWidget(splitter)
+
+        self.bottom_banner = BottomBanner(self.config.kits_exporter.show_terminal)
+        self.bottom_banner.terminal_toggled.connect(self.toggle_terminal_visibility)
+        main_layout.addWidget(self.bottom_banner)
+
+        self.setLayout(main_layout)
+        self.set_step2_enabled(False)
+        self.json_path.textChanged.connect(self.on_json_path_changed)
+        self.setup_config_signals()
+
+        self.enable_matrix.stateChanged.connect(self._update_matrix_editor_state)
+        self.filter_pads.stateChanged.connect(self._update_pad_filter_editor_state)
+        self.on_json_path_changed()
+        self.toggle_terminal_visibility(self.config.kits_exporter.show_terminal)
+
+    # ── Config persistence ───────────────────────────────────────────────────
+
+    def closeEvent(self, event):
+        self.config.kits_exporter.width = self.width()
+        self.config.kits_exporter.height = self.height()
+        config_utils.save_config(self.config)
+        super().closeEvent(event)
+
+    def toggle_terminal_visibility(self, state):
+        self.log_output.setVisible(state)
+        self.config.kits_exporter.show_terminal = state
+        config_utils.save_config(self.config)
+
+    def setup_config_signals(self):
+        for widget, key in [
+            (self.input_folder, "input_folder"),
+            (self.output_folder, "output_folder"),
+            (self.generate_txt, "generate_txt"),
+            (self.json_path, "json_path"),
+            (self.proc_output_folder, "proc_output_folder"),
+            (self.trim_silence, "trim_silence"),
+            (self.normalize, "normalize"),
+            (self.sample_rate, "sample_rate"),
+            (self.bit_depth, "bit_depth"),
+            (self.include_preview, "include_preview"),
+            (self.replace_missing, "replace_missing"),
+            (self.skip_existing, "skip_existing"),
+            (self.bottom_banner.show_terminal_button, "show_terminal"),
+            (self.enable_matrix, "enable_matrix"),
+            (self.filter_pads, "filter_pads"),
+        ]:
+            if isinstance(widget, QtWidgets.QLineEdit):
+                widget.textChanged.connect(lambda val, k=key: self.on_config_changed(k, val))
+            elif isinstance(widget, QtWidgets.QComboBox):
+                widget.currentIndexChanged.connect(lambda _, k=key, w=widget: self.on_config_changed(k, w.currentData()))
+            elif isinstance(widget, QtWidgets.QCheckBox):
+                widget.stateChanged.connect(
+                    lambda val, k=key, w=widget: self.on_config_changed(k, w.isChecked())
+                )
+            elif isinstance(widget, QtWidgets.QPushButton) and widget.isCheckable():
+                widget.toggled.connect(
+                    lambda val, k=key, w=widget: self.on_config_changed(k, w.isChecked())
+                )
+
+        self.matrix_editor.matrix_changed.connect(self.on_matrix_config_changed)
+        self.pad_filter_editor.pad_filter_changed.connect(self.on_pad_filter_config_changed)
+
+    def on_config_changed(self, key, value):
+        setattr(self.config.kits_exporter, key, value)
+        config_utils.save_config(self.config)
+
+    def on_matrix_config_changed(self):
+        self.config.kits_exporter.matrix_config = self.matrix_editor.get_matrix()
+        config_utils.save_config(self.config)
+
+    def on_pad_filter_config_changed(self):
+        self.config.kits_exporter.pad_filter_config = self.pad_filter_editor.get_pad_filter()
+        config_utils.save_config(self.config)
+
+    def normalize_path(self, path: str) -> str:
+        return os.path.normpath(path) if path else path
+
+    def load_config_to_ui(self):
+        c = self.config.kits_exporter
+        self.input_folder.setText(self.normalize_path(c.input_folder))
+        self.output_folder.setText(self.normalize_path(c.output_folder))
+        self.generate_txt.setChecked(c.generate_txt)
+        self.json_path.setText(self.normalize_path(c.json_path))
+        self.proc_output_folder.setText(self.normalize_path(c.proc_output_folder))
+        self.trim_silence.setChecked(c.trim_silence)
+        self.normalize.setChecked(c.normalize)
+        saved_sample_rate = c.sample_rate if c.sample_rate else ''
+        for index in range(self.sample_rate.count()):
+            if self.sample_rate.itemData(index) == saved_sample_rate:
+                self.sample_rate.setCurrentIndex(index)
+                break
+        else:
+            self.sample_rate.setCurrentIndex(0)
+
+        saved_bit_depth = c.bit_depth if c.bit_depth else ''
+        for index in range(self.bit_depth.count()):
+            if self.bit_depth.itemData(index) == saved_bit_depth:
+                self.bit_depth.setCurrentIndex(index)
+                break
+        else:
+            self.bit_depth.setCurrentIndex(0)
+        self.skip_existing.setChecked(c.skip_existing)
+        self.enable_matrix.setChecked(c.enable_matrix)
+        self.matrix_editor.set_matrix(self.config.kits_exporter.matrix_config)
+        self.filter_pads.setChecked(c.filter_pads)
+        self.pad_filter_editor.set_pad_filter(self.config.kits_exporter.pad_filter_config)
+        self.include_preview.setChecked(c.include_preview)
+        self.replace_missing.setChecked(c.replace_missing)
+        self.bottom_banner.show_terminal_button.setChecked(c.show_terminal)
+
+    # ── UI state helpers ─────────────────────────────────────────────────────
+
+    def _update_matrix_editor_state(self):
+        enabled = bool(self.json_path.text().strip()) and self.enable_matrix.isChecked()
+        self.matrix_editor.setEnabled(enabled)
+        self.matrix_toggle_btn.setEnabled(enabled)
+        self.matrix_editor.setVisible(self.matrix_toggle_btn.isChecked() and enabled)
+
+    def _update_pad_filter_editor_state(self):
+        enabled = bool(self.json_path.text().strip()) and self.filter_pads.isChecked()
+        self.pad_filter_editor.setEnabled(enabled)
+        self.pad_filter_toggle_btn.setEnabled(enabled)
+        self.pad_filter_editor.setVisible(self.pad_filter_toggle_btn.isChecked() and enabled)
+
+    def set_step2_enabled(self, enabled):
+        widgets = [
+            self.proc_output_folder, self.proc_output_folder_btn,
+            self.trim_silence, self.normalize,
+            self.run_process_btn, self.sample_rate, self.bit_depth,
+            self.include_preview, self.replace_missing, self.skip_existing,
+        ]
+        for w in widgets:
+            w.setEnabled(enabled)
+        self.enable_matrix.setEnabled(enabled)
+        self.filter_pads.setEnabled(enabled)
+        self._update_matrix_editor_state()
+        self._update_pad_filter_editor_state()
+
+    def on_json_path_changed(self):
+        enabled = bool(self.json_path.text().strip())
+        self.set_step2_enabled(enabled)
+        self._update_matrix_editor_state()
+        self._update_pad_filter_editor_state()
+
+    # ── Folder/file choosers ─────────────────────────────────────────────────
+
+    def choose_input_folder(self):
+        folder = QtWidgets.QFileDialog.getExistingDirectory(
+            self, "Select Input Folder", self.input_folder.text()
+        )
+        if folder:
+            self.input_folder.setText(folder)
+
+    def choose_output_folder(self):
+        folder = QtWidgets.QFileDialog.getExistingDirectory(
+            self, "Select Output Folder", self.output_folder.text()
+        )
+        if folder:
+            self.output_folder.setText(folder)
+
+    def choose_json_file(self):
+        file, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, "Select JSON File", self.json_path.text(), "JSON Files (*.json)"
+        )
+        if file:
+            self.json_path.setText(file)
+
+    def choose_proc_output_folder(self):
+        folder = QtWidgets.QFileDialog.getExistingDirectory(
+            self, "Select Output Folder", self.proc_output_folder.text()
+        )
+        if folder:
+            self.proc_output_folder.setText(folder)
+
+    # ── Workers ──────────────────────────────────────────────────────────────
+
+    def run_build_json(self):
+        input_folder = self.input_folder.text().strip()
+        output_folder = self.output_folder.text().strip()
+        generate_txt = self.generate_txt.isChecked()
+
+        if not input_folder:
+            QMessageBox.warning(self, "Input Error", "Please select an input folder for .nbkt files.")
+            return
+        if not output_folder:
+            QMessageBox.warning(self, "Input Error", "Please select an output folder for the JSON file.")
+            return
+
+        builder = KitsJsonBuilder(
+            input_folder=input_folder,
+            output_folder=output_folder,
+            generate_txt=generate_txt,
+        )
+        self.log_output.append(f"Starting JSON build process for input folder: {input_folder}")
+        self.show_loading("Processing kits...")
+        self.run_worker(builder.run, {}, logger_name="KitsBuilder")
+
+        json_path = os.path.join(output_folder, "all_kits.json")
+        self.json_path.setText(json_path)
+        self.proc_output_folder.setText(os.path.abspath("./out/kits_export"))
+        self.last_built_json_path = json_path
+
+    def run_process_py(self):
+        json_path = self.json_path.text().strip()
+        output_folder = self.proc_output_folder.text().strip()
+
+        if not json_path or not os.path.exists(json_path):
+            QMessageBox.warning(self, "Input Error", "Please select a valid JSON file.")
+            return
+        if not output_folder:
+            QMessageBox.warning(self, "Input Error", "Please select an output folder for the exported kits.")
+            return
+
+        sample_rate_val = None
+        sample_rate_value = self.sample_rate.currentData()
+        if sample_rate_value:
+            try:
+                sample_rate_val = int(sample_rate_value)
+            except ValueError:
+                QMessageBox.warning(self, "Input Error", "Sample rate must be a valid value.")
+                return
+
+        bit_depth_val = None
+        bit_depth_value = self.bit_depth.currentData()
+        if bit_depth_value:
+            try:
+                bit_depth_val = int(bit_depth_value)
+            except ValueError:
+                QMessageBox.warning(self, "Input Error", "Bit depth must be a valid value.")
+                return
+
+        processor = KitsProcessor(
+            json_path=json_path,
+            output_folder=output_folder,
+            trim_silence=self.config.kits_exporter.trim_silence,
+            normalize=self.config.kits_exporter.normalize,
+            sample_rate=sample_rate_val,
+            bit_depth=bit_depth_val,
+            matrix=self.matrix_editor.get_matrix() if self.config.kits_exporter.enable_matrix else None,
+            enable_matrix=self.config.kits_exporter.enable_matrix,
+            filter_pads=self.config.kits_exporter.filter_pads,
+            pad_filter=self.pad_filter_editor.get_pad_filter() if self.config.kits_exporter.filter_pads else None,
+            include_preview=self.config.kits_exporter.include_preview,
+            skip_existing=self.config.kits_exporter.skip_existing,
+            replace_missing=self.config.kits_exporter.replace_missing,
+        )
+        self.log_output.append(f"Starting kits export process for JSON: {json_path}")
+        self.show_loading("Exporting kits...")
+        self.run_worker(processor.run, {}, logger_name="KitsProcessor")
+
+    def run_worker(self, target_callable, kwargs, logger_name=None):
+        self.run_build_btn.setEnabled(False)
+        self.run_process_btn.setEnabled(False)
+        self.has_output = False
+        self.worker = WorkerThread(target_callable, kwargs, logger_name)
+        self.worker.output_signal.connect(self.on_worker_output)
+        self.worker.finished_signal.connect(self.on_subprocess_finished)
+        self.worker.start()
+
+    def on_subprocess_finished(self, code: int):
+        self.hide_loading()
+        QtWidgets.QApplication.instance().beep()
+
+        is_process_tab = (self.tabs.currentIndex() == 0)
+        context = "Process" if is_process_tab else "Export"
+
+        self.log_output.append(f"{context} finished with code {code}\n")
+
+        if self.cancelled or code == -1:
+            self.log_output.append(f"{context} cancelled by user.\n")
+            QMessageBox.information(self, f"{context} Cancelled", f"The {context.lower()} was cancelled.")
+
+        elif code == 0:
+            if not self.has_output:
+                self.log_output.append(f"{context} finished with no output.\n")
+                QMessageBox.warning(
+                    self,
+                    f"{context} Empty",
+                    f"The {context.lower()} finished successfully but produced no output.",
+                )
+            else:
+                self.log_output.append("Done\n")
+                if is_process_tab:
+                    if self.last_built_json_path and os.path.exists(self.last_built_json_path):
+                        try:
+                            with open(self.last_built_json_path, "r") as f:
+                                data = json.load(f)
+                            if isinstance(data, list) and len(data) == 0:
+                                self.log_output.append("0 kits processed.\n")
+                                QMessageBox.warning(
+                                    self, "No Kits Processed",
+                                    "The process completed but no kits were found or processed.",
+                                )
+                            else:
+                                self.tabs.setCurrentIndex(1)
+                                QMessageBox.information(
+                                    self, "Process Complete",
+                                    "Kits JSON file has been successfully built!",
+                                )
+                        except Exception as e:
+                            self.log_output.append(f"Warning: Could not verify JSON file: {e}\n")
+                            self.tabs.setCurrentIndex(1)
+                            QMessageBox.information(
+                                self, "Process Complete",
+                                "Kits JSON file built, but verification failed. Proceed with caution.",
+                            )
+                    else:
+                        QMessageBox.warning(self, "No Output JSON", "The process finished but no JSON file was found.")
+                else:
+                    show_export_complete_dialog(
+                        parent=self,
+                        output_folder=self.proc_output_folder.text().strip(),
+                        log_content=self.log_output.toPlainText(),
+                        title="Export Complete",
+                        message="Kits export process finished successfully.",
+                    )
+        else:
+            error_message = f"{context} failed with exit code {code}"
+            self.log_output.append(error_message + "\n")
+            full_log = self.log_output.toPlainText()
+            detailed_error_text = "\n".join(full_log.splitlines()[-20:])
+            ErrorDialog(
+                parent=self,
+                title=f"{context} Failed",
+                message=f"The {context.lower()} failed (exit code {code}). See details below.",
+                detailed_text=detailed_error_text,
+                icon=QMessageBox.Icon.Critical,
+            ).exec()
+
+        self.run_build_btn.setEnabled(True)
+        self.run_process_btn.setEnabled(True)
+        self.cancelled = False
+
+    def on_worker_output(self, text):
+        self.log_output.append(text)
+        self.has_output = True
+
+    def show_loading(self, message):
+        self.cancelled = False
+        self.progress_dialog = QtWidgets.QProgressDialog(message, "Cancel", 0, 0, self)
+        self.progress_dialog.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal)
+        self.progress_dialog.setWindowTitle("Please wait")
+        self.progress_dialog.setMinimumDuration(0)
+        self.progress_dialog.canceled.connect(self.cancel_worker)
+        self.progress_dialog.show()
+
+    def hide_loading(self):
+        if self.progress_dialog:
+            self.progress_dialog.close()
+            self.progress_dialog = None
+
+    def cancel_worker(self):
+        if self.worker and self.worker.isRunning():
+            self.worker.request_cancel()
+            self.cancelled = True
+            self.worker = None
+        else:
+            self.run_build_btn.setEnabled(True)
+            self.run_process_btn.setEnabled(True)
+            self.hide_loading()
+
+
+if __name__ == "__main__":
+    import sys
+    app = QtWidgets.QApplication(sys.argv)
+    gui = KitsExporterGUI()
+    gui.show()
+    sys.exit(app.exec())

@@ -9,6 +9,7 @@ from PyQt6.QtCore import QSharedMemory
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from apps.groups_exporter_gui import GroupsExporterGUI
+from apps.kits_exporter_gui import KitsExporterGUI
 from apps.previews_exporter_gui import PreviewsExporterGUI
 from components.version_label import VersionLabel
 from dialogs.configuration_dialog import ConfigurationDialog
@@ -137,13 +138,10 @@ class MainGUI(QtWidgets.QMainWindow):
 
         self.kits_button = self.create_tool_button(
             "Kits Exporter",
-            "Battery Kits exporter, work in progress...",
+            "Export Battery kits and their samples",
             get_bundled_path('resources/icons/kits.png'),
-            None
+            self.launch_kits_exporter
         )
-        self.kits_button.setEnabled(False)
-        self.kits_button.setToolTip("This feature is not yet implemented.")
-
         self.layout.addWidget(self.kits_button)
 
     def _create_bottom_banner(self):
@@ -249,6 +247,9 @@ class MainGUI(QtWidgets.QMainWindow):
 
     def launch_groups_exporter(self):
         self.launch_tool(GroupsExporterGUI)
+
+    def launch_kits_exporter(self):
+        self.launch_tool(KitsExporterGUI)
 
     def launch_previews_exporter(self):
         self.launch_tool(PreviewsExporterGUI)

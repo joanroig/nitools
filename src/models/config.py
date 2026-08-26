@@ -3,6 +3,7 @@ import json
 from pydantic import BaseModel
 
 from models.groups_exporter_config import GroupsExporterConfig
+from models.kits_exporter_config import KitsExporterConfig
 from models.previews_exporter_config import PreviewsExporterConfig
 from utils.enums import Style
 from utils.version import CONFIG_VERSION
@@ -14,6 +15,7 @@ class Config(BaseModel):
     max_log_lines: int = 200
     log_panel_sizes: list[int] = []
     groups_exporter: GroupsExporterConfig = GroupsExporterConfig()
+    kits_exporter: KitsExporterConfig = KitsExporterConfig()
     previews_exporter: PreviewsExporterConfig = PreviewsExporterConfig()
     custom_color: str = "#D0BCFF"
     enable_custom_color: bool = False
