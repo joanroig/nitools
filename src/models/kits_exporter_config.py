@@ -21,7 +21,6 @@ class KitsExporterConfig(BaseModel):
     filter_pads: bool = Field(default=False, description="Enable pad filtering by keywords")
     pad_filter_config: PadFilterConfig = Field(default_factory=PadFilterConfig, description="Configuration for pad filtering keywords")
     include_preview: bool = Field(default=True, description="Include preview samples in export")
-    replace_missing: bool = Field(default=True, description="Replace missing samples with best candidate from the same kit")
     show_terminal: bool = Field(default=True, description="Show terminal output at the bottom of the window")
     width: int = Field(default=0, description="Window width")
     height: int = Field(default=0, description="Window height")

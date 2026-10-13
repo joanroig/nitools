@@ -1,12 +1,18 @@
+# Frozen multiprocessing children must enter their worker before importing Qt
+# or running the single-instance launcher.
+if __name__ == '__main__':
+    from multiprocessing import freeze_support
+    freeze_support()
+
 import logging
 import os
 import sys
 import traceback
 import webbrowser
 
-from PyQt6 import QtCore, QtGui, QtWidgets
-from PyQt6.QtCore import QSharedMemory
-from PyQt6.QtWidgets import QApplication, QMessageBox
+from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6.QtCore import QSharedMemory
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from apps.groups_exporter_gui import GroupsExporterGUI
 from apps.kits_exporter_gui import KitsExporterGUI

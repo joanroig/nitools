@@ -4,14 +4,15 @@
 set -euo pipefail
 
 # Define base paths
-root="$(pwd)"
+root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+cd "$root"
 baseDistPath="$root/dist"
 
 # Initialize CI flag
 CI_MODE=false
 
 # TARGET_ARCH is the first argument
-TARGET_ARCH="$1"
+TARGET_ARCH="${1:-}"
 
 # Check if the second argument is --ci
 if [ "${2:-}" == "--ci" ]; then
@@ -25,46 +26,40 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 # Get target architecture from argument
-if [ -z "$TARGET_ARCH" ]; then
-    echo "Error: Target architecture (x86_64 or arm64) must be provided as the first argument."
+if [[ "$TARGET_ARCH" != "x86_64" && "$TARGET_ARCH" != "arm64" ]]; then
+    echo "Error: Target architecture must be x86_64 or arm64."
     exit 1
 fi
 
 export PYTHONPATH="$root/src"
+export NITOOLS_TARGET_ARCH="$TARGET_ARCH"
+
+# Fetch the version before selecting architecture/version-specific build paths.
+VERSION=$(uv run --locked --project "$root" python -c "from utils.version import APP_VERSION; print(APP_VERSION)")
 
 # Define architecture-specific paths
 ARCH_SUFFIX="_${TARGET_ARCH}"
 # PyInstaller will create NITools.app inside this path
-platformDistPath="$baseDistPath/macos${ARCH_SUFFIX}" # e.g., dist/macos_x86_64
-
-# Ensure dist/build folders are clean so PyInstaller does not reuse stale caches
-rm -rf "$platformDistPath"
-rm -rf "$root/build"
-rm -rf "$root/dist"
-mkdir -p "$platformDistPath"
-
-# Fetch version number from src/utils/version.py
-VERSION=$(uv run --project "$root" python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)" | xargs)
+platformDistPath="$baseDistPath/macos${ARCH_SUFFIX}_v$VERSION"
+buildPath="$root/build/macos${ARCH_SUFFIX}_v$VERSION"
+mkdir -p "$platformDistPath" "$buildPath"
 
 # Run PyInstaller to bundle the app as a macOS .app
-# MACOSX_DEPLOYMENT_TARGET ensures compatibility with older macOS versions
-MACOSX_DEPLOYMENT_TARGET=11.0 uv run --project "$root" python -m PyInstaller \
+# Match the minimum supported by the locked PySide6 universal2 wheel.
+MACOSX_DEPLOYMENT_TARGET=13.0 uv run --locked --project "$root" python -m PyInstaller \
     --clean \
     --noconfirm \
-    --windowed \
-    --add-data "resources:resources" \
-    --add-data "pyproject.toml:." \
-    --icon=icons/app.icns \
-    --target-arch "$TARGET_ARCH" \
-    ./src/launcher.py \
-    -n "NITools" \
+    "$root/packaging/nitools.spec" \
+    --workpath "$buildPath" \
     --distpath "$platformDistPath"
 
 # The .app bundle is now at "$platformDistPath/NITools.app"
+uv run --locked --project "$root" python packaging/collect_licenses.py "$buildPath/nitools" "$platformDistPath/NITools.app/Contents/Resources"
+cp LICENSE THIRD_PARTY_NOTICES.md "$platformDistPath/NITools.app/Contents/Resources/"
 
 # Generate PDF guide next to the .app bundle for inclusion in DMG
 guidePath="$platformDistPath/nitools-guide.pdf" # Place guide directly in the dist folder
-uv run --project "$root" python docs/makepdf.py docs/GUIDE.md "$guidePath"
+uv run --locked --project "$root" python docs/makepdf.py docs/GUIDE.md "$guidePath"
 
 # Create helper script to remove quarantine attributes
 HELPER_SCRIPT_NAME="fix.command"
@@ -91,7 +86,6 @@ fi
 create-dmg \
     --volname "NITools v$VERSION" \
     --window-size 700 750 \
-    --background "docs/img/dmg-background.jpg" \
     --icon-size 100 \
     --app-drop-link 550 200 \
     --icon "NITools.app" 150 200 \

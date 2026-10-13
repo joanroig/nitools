@@ -17,12 +17,15 @@ def trim_and_normalize_wav(
     bit_depth: int | None = None,
 ):
     # Load audio
-    data, sr = sf.read(input_path, always_2d=True)
-    info = sf.info(input_path)
+    # Read metadata from the same handle instead of opening every file twice.
+    with sf.SoundFile(input_path) as source:
+        data = source.read(always_2d=True)
+        sr, source_format, source_subtype = source.samplerate, source.format, source.subtype
     data = data.T  # shape: (channels, samples)
 
     # Only process if audio carries actual content rather than a noise floor
-    if data.size and np.max(np.abs(data)) > SILENCE_PEAK:
+    peak = np.max(np.abs(data)) if data.size and (trim_silence or normalize) else 0
+    if peak > SILENCE_PEAK:
         if trim_silence:
             # Compute RMS per frame across channels
             rms = np.sqrt(np.mean(data**2, axis=0))
@@ -32,9 +35,11 @@ def trim_and_normalize_wav(
             if non_silent_idx.size > 0:
                 start, end = non_silent_idx[0], non_silent_idx[-1] + 1
                 data = data[:, start:end]
+                # Retain the original peak calculation when trimming changes
+                # the range; otherwise reuse the already measured peak.
+                peak = np.max(np.abs(data))
 
         if normalize:
-            peak = np.max(np.abs(data))
             if peak > 0:
                 data = data / peak * 0.999  # avoid clipping
 
@@ -52,7 +57,7 @@ def trim_and_normalize_wav(
         if subtype is None:
             raise ValueError(f"Unsupported bit depth: {bit_depth}")
     else:
-        subtype = info.subtype if info.format == "WAV" else "PCM_24"
+        subtype = source_subtype if source_format == "WAV" else "PCM_24"
 
     # Write audio
     if data.size == 0:

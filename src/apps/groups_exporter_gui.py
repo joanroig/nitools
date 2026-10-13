@@ -1,28 +1,26 @@
 from processors.groups.build_groups_json import GroupsJsonBuilder
-from utils.worker_utils import WorkerThread
 from utils.style_utils import apply_style
 from utils.bundle_utils import get_bundled_path
 from utils import config_utils
 from processors.groups.process_groups_json import GroupsProcessor
-import json
 import os
 import sys
 
-from PyQt6 import QtCore, QtGui, QtWidgets
-from PyQt6.QtWidgets import QMessageBox
+from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6.QtWidgets import QMessageBox
 
 from components.ansi_text_edit import AnsiTextEdit
+from components.exporter_workflow import ExporterWorkflow
+from components.exporter_layout import ExpandableOptions, activity_panel, audio_options, finish_layout
 from components.bottom_banner import BottomBanner
 from components.matrix_editor import MatrixEditor
 from components.no_wheel_combo_box import NoWheelComboBox
 from components.pad_filter_editor import PadFilterEditor
 from components.resizable_log_splitter import ResizableLogSplitter
-from dialogs.error_dialog import ErrorDialog
-from dialogs.export_complete_dialog import show_export_complete_dialog
 from models.config import Config
 
 
-class GroupsExporterGUI(QtWidgets.QDialog):
+class GroupsExporterGUI(ExporterWorkflow, QtWidgets.QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -34,6 +32,7 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         self.config: Config = config_utils.load_config()
         apply_style(self.config.style)  # Apply style for standalone execution
         self.worker = None
+        self.active_operation = None
         self.progress_dialog = None
         self.cancelled = False
         self.has_output = False
@@ -58,7 +57,7 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         process_layout = QtWidgets.QVBoxLayout()
 
         # Step 1 label
-        step1_label = QtWidgets.QLabel("Step 1: Build JSON from .mxgrp")
+        step1_label = QtWidgets.QLabel("Choose your Maschine library")
         step1_label.setStyleSheet("font-weight: bold;")
         process_layout.addWidget(step1_label)
 
@@ -75,7 +74,7 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         input_folder_layout = QtWidgets.QHBoxLayout()
         input_folder_layout.addWidget(self.input_folder)
         input_folder_layout.addWidget(self.input_folder_btn)
-        build_layout.addRow('Input folder:', input_folder_layout)
+        build_layout.addRow('Library folder', input_folder_layout)
 
         self.output_folder = QtWidgets.QLineEdit()
         self.output_folder.setToolTip('Select the folder where the generated JSON and optional TXT files will be saved.')
@@ -86,10 +85,10 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         output_folder_layout = QtWidgets.QHBoxLayout()
         output_folder_layout.addWidget(self.output_folder)
         output_folder_layout.addWidget(self.output_folder_btn)
-        build_layout.addRow('Output folder:', output_folder_layout)
+        build_layout.addRow('Index folder', output_folder_layout)
 
         self.generate_txt = QtWidgets.QCheckBox('Generate TXT files')
-        self.generate_txt.setToolTip('If checked, a .txt file will be generated for each group, listing unprocessed data for debug purposes.')
+        self.generate_txt.setToolTip('Save decoded Sound names, sample references and source offsets for each group.')
         build_layout.addRow('', self.generate_txt)
 
         scroll_area_process = QtWidgets.QScrollArea()
@@ -110,9 +109,9 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         export_layout = QtWidgets.QVBoxLayout()
 
         # Step 2 label
-        step2_label = QtWidgets.QLabel("Step 2: Export Groups")
-        step2_label.setStyleSheet("font-weight: bold;")
-        export_layout.addWidget(step2_label)
+        export_note = QtWidgets.QLabel('Choose an index, destination and audio settings.')
+        export_note.setWordWrap(True)
+        export_layout.addWidget(export_note)
 
         # Scrollable content for Tab 2
         scrollable_content_export = QtWidgets.QWidget()
@@ -128,7 +127,7 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         json_path_layout = QtWidgets.QHBoxLayout()
         json_path_layout.addWidget(self.json_path)
         json_path_layout.addWidget(self.json_path_btn)
-        export_form_layout.addRow('JSON file:', json_path_layout)
+        export_form_layout.addRow('Index file', json_path_layout)
         self.proc_output_folder = QtWidgets.QLineEdit()
         self.proc_output_folder.setToolTip('Select the folder where the processed group samples will be exported.')
         self.proc_output_folder.setPlaceholderText('e.g., C:/Users/YourName/Documents/NITools/ExportedGroups')
@@ -138,19 +137,17 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         proc_output_folder_layout = QtWidgets.QHBoxLayout()
         proc_output_folder_layout.addWidget(self.proc_output_folder)
         proc_output_folder_layout.addWidget(self.proc_output_folder_btn)
-        export_form_layout.addRow('Output folder:', proc_output_folder_layout)
+        export_form_layout.addRow('Export folder', proc_output_folder_layout)
 
         # --- Options group ---
-        options_group = QtWidgets.QGroupBox('Options')
-        options_layout = QtWidgets.QVBoxLayout()
-        self.skip_existing = QtWidgets.QCheckBox('Skip already processed')
+        self.skip_existing = QtWidgets.QCheckBox('Skip existing files')
         self.skip_existing.setToolTip('If checked, samples that already exist in the output folder will be skipped.')
         self.trim_silence = QtWidgets.QCheckBox('Trim silence')
         self.trim_silence.setToolTip('If checked, leading and trailing silence will be removed from samples.')
         self.normalize = QtWidgets.QCheckBox('Normalize')
-        self.normalize.setToolTip('If checked, audio samples will be normalized to a standard loudness level.')
+        self.normalize.setToolTip('Normalize sample peaks to just below full scale. Silent samples are left unchanged.')
         self.include_preview = QtWidgets.QCheckBox('Include preview samples')
-        self.include_preview.setToolTip('If checked, a short preview sample will be generated for each group.')
+        self.include_preview.setToolTip('Include the existing group preview as a WAV file when available.')
         self.sample_rate = NoWheelComboBox()
         self.sample_rate.addItem('Keep Original', '')
         self.sample_rate.addItem('44100 Hz', '44100')
@@ -164,16 +161,80 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         self.bit_depth.addItem('32-bit (Warning: SP 404 MK2 does not read 32-bit)', '32')
         self.bit_depth.setCurrentIndex(2)
         self.bit_depth.setToolTip('Bit depth for export.')
-        options_layout.addWidget(self.skip_existing)
-        options_layout.addWidget(self.trim_silence)
-        options_layout.addWidget(self.normalize)
-        options_layout.addWidget(self.include_preview)
-        options_layout.addWidget(QtWidgets.QLabel('Sample rate:'))
-        options_layout.addWidget(self.sample_rate)
-        options_layout.addWidget(QtWidgets.QLabel('Bit depth:'))
-        options_layout.addWidget(self.bit_depth)
-        options_group.setLayout(options_layout)
-        export_form_layout.addRow(options_group)
+        export_form_layout.addRow(audio_options(self))
+
+        render_group = QtWidgets.QGroupBox('Instrument rendering · experimental')
+        render_layout = QtWidgets.QFormLayout(render_group)
+        self.render_instruments = QtWidgets.QCheckBox('Render external VST2 instruments')
+        self.render_instruments.setToolTip('Render one note using the instrument state saved in the original kit. Requires Windows and the matching installed VST2 plug-in and content.')
+        render_layout.addRow(self.render_instruments)
+        self.render_maschine = QtWidgets.QCheckBox('Render internal instruments with Maschine 3')
+        self.render_maschine.setToolTip('Requires the installed Maschine 3 VST3. Kits can be prepared automatically. Uses each pad’s saved pitch and the kit’s effects.')
+        render_layout.addRow(self.render_maschine)
+        render_help = QtWidgets.QLabel('Windows 64-bit. External VST2 rendering loads saved presets directly. Maschine rendering also supports internal synths and automatically caches kits for later exports. Installed instruments and content are required.')
+        render_help.setWordWrap(True)
+        render_layout.addRow(render_help)
+        self.render_settings = QtWidgets.QWidget()
+        render_form = QtWidgets.QFormLayout(self.render_settings)
+        render_form.setContentsMargins(0, 0, 0, 0)
+        self.vst2_folder = QtWidgets.QLineEdit()
+        self.vst2_folder.setPlaceholderText('Automatic · standard VST2 folders')
+        self.vst2_folder_btn = QtWidgets.QPushButton('Browse…')
+        self.vst2_folder_btn.clicked.connect(self.choose_vst2_folder)
+        folder_row = QtWidgets.QHBoxLayout()
+        folder_row.addWidget(self.vst2_folder)
+        folder_row.addWidget(self.vst2_folder_btn)
+        render_form.addRow('Additional VST2 folder', folder_row)
+        self.native_settings = QtWidgets.QWidget()
+        native_form = QtWidgets.QFormLayout(self.native_settings)
+        native_form.setContentsMargins(0, 0, 0, 0)
+        self.maschine_plugin = QtWidgets.QLineEdit()
+        self.maschine_plugin.setPlaceholderText('Automatic · installed Maschine 3.vst3')
+        plugin_row = QtWidgets.QHBoxLayout()
+        plugin_row.addWidget(self.maschine_plugin)
+        plugin_button = QtWidgets.QPushButton('Browse…')
+        plugin_button.clicked.connect(self.choose_maschine_plugin)
+        plugin_row.addWidget(plugin_button)
+        native_form.addRow('Maschine VST3', plugin_row)
+        self.auto_prepare = QtWidgets.QCheckBox('Automatically prepare uncached kits during export')
+        self.auto_prepare.setChecked(True)
+        native_form.addRow(self.auto_prepare)
+        self.prepare_timeout = QtWidgets.QSpinBox()
+        self.prepare_timeout.setRange(5, 900)
+        self.prepare_timeout.setValue(120)
+        self.prepare_timeout.setSuffix(' s')
+        self.prepare_timeout.setToolTip('Maximum loading time per kit. A stalled kit is reported and the queue continues with a fresh host.')
+        native_form.addRow('Kit loading timeout', self.prepare_timeout)
+        prepare_row = QtWidgets.QHBoxLayout()
+        self.prepare_all_btn = QtWidgets.QPushButton('Prepare indexed kits…')
+        self.prepare_all_btn.clicked.connect(self.prepare_maschine_index)
+        prepare_row.addWidget(self.prepare_all_btn)
+        self.prepare_kit_btn = QtWidgets.QPushButton('Assisted single kit…')
+        self.prepare_kit_btn.clicked.connect(self.prepare_maschine_kit)
+        prepare_row.addWidget(self.prepare_kit_btn)
+        native_form.addRow('', prepare_row)
+        render_form.addRow(self.native_settings)
+        self.render_note = QtWidgets.QSpinBox()
+        self.render_note.setRange(0, 127)
+        self.render_note.setToolTip('MIDI note number. 60 is middle C.')
+        self.render_velocity = QtWidgets.QSpinBox()
+        self.render_velocity.setRange(1, 127)
+        self.render_hold = QtWidgets.QDoubleSpinBox()
+        self.render_tail = QtWidgets.QDoubleSpinBox()
+        for control in (self.render_hold, self.render_tail):
+            control.setRange(0.05, 30)
+            control.setSingleStep(0.25)
+            control.setSuffix(' s')
+        notes_row = QtWidgets.QHBoxLayout()
+        for label, control in (('VST2 note', self.render_note), ('Velocity', self.render_velocity),
+                               ('Hold', self.render_hold), ('Release', self.render_tail)):
+            notes_row.addWidget(QtWidgets.QLabel(label))
+            notes_row.addWidget(control)
+        render_form.addRow(notes_row)
+        render_layout.addRow(self.render_settings)
+        for checkbox in (self.render_instruments, self.render_maschine):
+            checkbox.toggled.connect(self.update_render_settings)
+        self.update_render_settings()
 
         # --- Pad Reorder Matrix group ---
         matrix_group = QtWidgets.QGroupBox('Pad Reorder Matrix (4x4)')
@@ -192,7 +253,6 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         matrix_layout.addWidget(self.matrix_toggle_btn)
         matrix_layout.addWidget(self.matrix_editor)
         matrix_group.setLayout(matrix_layout)
-        export_form_layout.addRow(matrix_group)
 
         # --- Pad Filter group ---
         pad_filter_group = QtWidgets.QGroupBox('Pad Filter Keywords')
@@ -211,7 +271,6 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         pad_filter_layout.addWidget(self.pad_filter_toggle_btn)
         pad_filter_layout.addWidget(self.pad_filter_editor)
         pad_filter_group.setLayout(pad_filter_layout)
-        export_form_layout.addRow(pad_filter_group)
 
         # --- Fill blanks group ---
         fill_group = QtWidgets.QGroupBox('Fill Blank Pads')
@@ -231,7 +290,10 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         fill_layout.addWidget(QtWidgets.QLabel('Fill blanks path:'))
         fill_layout.addLayout(fill_blanks_path_layout)
         fill_group.setLayout(fill_layout)
-        export_form_layout.addRow(fill_group)
+
+        self.advanced_options = ExpandableOptions('Pad and instrument options', [render_group, matrix_group, pad_filter_group, fill_group], [self.render_instruments, self.render_maschine, self.enable_matrix, self.filter_pads, self.fill_blanks])
+        self.render_options_panel = render_group
+        export_form_layout.addRow(self.advanced_options)
 
         scrollable_content_export_layout.addLayout(export_form_layout)
 
@@ -249,11 +311,12 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         self.tabs.addTab(self.tab_export, 'Export Groups')
 
         # --- Log/output ---
-        self.log_output = AnsiTextEdit()
+        self.log_output = AnsiTextEdit(self.config.max_log_lines)
         self.log_output.setReadOnly(True)
 
         # Create a splitter to make the log_output resizable
-        splitter = ResizableLogSplitter(self.config, self.tabs, self.log_output)
+        self.activity_panel = activity_panel(self)
+        splitter = ResizableLogSplitter(self.config, self.tabs, self.activity_panel)
         main_layout.addWidget(splitter)
 
         # --- Bottom banner ---
@@ -262,6 +325,7 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         main_layout.addWidget(self.bottom_banner)
 
         self.setLayout(main_layout)
+        finish_layout(self, 'Maschine Groups', 'Export the samples in your Maschine groups.')
         self.set_step2_enabled(False)
         self.json_path.textChanged.connect(self.on_json_path_changed)
         self.setup_config_signals()
@@ -272,6 +336,8 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         self.toggle_terminal_visibility(self.config.groups_exporter.show_terminal)
 
     def closeEvent(self, event):
+        if self.stop_before_close(event):
+            return
         # Save current window size to config
         self.config.groups_exporter.width = self.width()
         self.config.groups_exporter.height = self.height()
@@ -279,39 +345,21 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         super().closeEvent(event)
 
     def toggle_terminal_visibility(self, state):
-        self.log_output.setVisible(state)
+        self.activity_panel.setVisible(state)
         self.config.groups_exporter.show_terminal = state
         config_utils.save_config(self.config)
 
-    def show_loading(self, message):
-        self.cancelled = False
-        self.progress_dialog = QtWidgets.QProgressDialog(message, 'Cancel', 0, 0, self)
-        self.progress_dialog.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal)
-        self.progress_dialog.setWindowTitle('Please wait')
-        self.progress_dialog.setMinimumDuration(0)
-        self.progress_dialog.canceled.connect(self.cancel_worker)
-        self.progress_dialog.show()
-
-    def hide_loading(self):
-        if self.progress_dialog:
-            self.progress_dialog.close()
-            self.progress_dialog = None
-
-    def cancel_worker(self):
-        if self.worker and self.worker.isRunning():
-            self.worker.request_cancel()  # Request cancellation
-            self.cancelled = True
-            self.worker = None
-        else:
-            self.run_build_btn.setEnabled(True)
-            self.run_process_btn.setEnabled(True)
-            self.hide_loading()
-
-    def on_worker_output(self, text):
-        self.log_output.append(text)
-        self.has_output = True
 
     def setup_config_signals(self):
+        self.render_instruments.toggled.connect(lambda value: self.on_render_config_changed('enabled', value))
+        self.render_maschine.toggled.connect(lambda value: self.on_render_config_changed('native_enabled', value))
+        self.auto_prepare.toggled.connect(lambda value: self.on_render_config_changed('auto_prepare', value))
+        self.prepare_timeout.valueChanged.connect(lambda value: self.on_render_config_changed('prepare_timeout', value))
+        self.maschine_plugin.textChanged.connect(lambda value: self.on_render_config_changed('maschine_plugin', value))
+        self.vst2_folder.textChanged.connect(lambda value: self.on_render_config_changed('plugin_folder', value))
+        for widget, key in ((self.render_note, 'note'), (self.render_velocity, 'velocity'),
+                            (self.render_hold, 'hold'), (self.render_tail, 'tail')):
+            widget.valueChanged.connect(lambda value, key=key: self.on_render_config_changed(key, value))
         # Save config on change
         # The keys here should match the attribute names in GroupsExporterConfig
         for widget, key in [
@@ -350,6 +398,37 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         setattr(self.config.groups_exporter, key, value)
         config_utils.save_config(self.config)
 
+    def on_render_config_changed(self, key, value):
+        setattr(self.config.groups_exporter.instrument_render, key, value)
+        config_utils.save_config(self.config)
+
+    def choose_vst2_folder(self):
+        path = QtWidgets.QFileDialog.getExistingDirectory(self, 'Choose an additional VST2 folder', self.vst2_folder.text())
+        if path:
+            self.vst2_folder.setText(path)
+
+    def update_render_settings(self):
+        external, native = self.render_instruments.isChecked(), self.render_maschine.isChecked()
+        self.render_settings.setVisible(external or native)
+        self.native_settings.setVisible(native)
+        for control in (self.vst2_folder, self.vst2_folder_btn, self.render_note):
+            control.setEnabled(external)
+
+    def choose_maschine_plugin(self):
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Choose Maschine 3 VST3', self.maschine_plugin.text(), 'VST3 (*.vst3)')
+        if path:
+            self.maschine_plugin.setText(path)
+
+    def prepare_maschine_kit(self):
+        from components.prepare_maschine_dialog import PrepareMaschineDialog
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Choose the original kit to prepare', self.input_folder.text(), 'Maschine Group (*.mxgrp)')
+        if path:
+            PrepareMaschineDialog(path, self.config.groups_exporter.instrument_render, self).exec()
+
+    def prepare_maschine_index(self):
+        from components.prepare_maschine_batch_dialog import PrepareMaschineBatchDialog
+        PrepareMaschineBatchDialog(self.json_path.text().strip(), self.config.groups_exporter.instrument_render, self).exec()
+
     def on_matrix_config_changed(self):
         self.config.groups_exporter.matrix_config = self.matrix_editor.get_matrix()
         config_utils.save_config(self.config)
@@ -363,6 +442,17 @@ class GroupsExporterGUI(QtWidgets.QDialog):
 
     def load_config_to_ui(self):
         c = self.config.groups_exporter
+        render = c.instrument_render.model_copy()
+        self.auto_prepare.setChecked(render.auto_prepare)
+        self.prepare_timeout.setValue(int(render.prepare_timeout))
+        self.render_note.setValue(render.note)
+        self.render_velocity.setValue(render.velocity)
+        self.render_hold.setValue(render.hold)
+        self.render_tail.setValue(render.tail)
+        self.vst2_folder.setText(render.plugin_folder)
+        self.render_instruments.setChecked(render.enabled)
+        self.maschine_plugin.setText(render.maschine_plugin)
+        self.render_maschine.setChecked(render.native_enabled)
         self.input_folder.setText(self.normalize_path(c.input_folder))
         self.output_folder.setText(self.normalize_path(c.output_folder))
         self.generate_txt.setChecked(c.generate_txt)
@@ -421,6 +511,7 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         ]
         for w in widgets:
             w.setEnabled(enabled)
+        self.render_options_panel.setEnabled(enabled)
 
         # Enable/disable the checkboxes themselves
         self.enable_matrix.setEnabled(enabled)
@@ -481,12 +572,11 @@ class GroupsExporterGUI(QtWidgets.QDialog):
         )
         self.log_output.append(f"Starting JSON build process for input folder: {input_folder}")
         self.show_loading('Processing groups...')
-        self.run_worker(builder.run, {}, logger_name="GroupsBuilder")
 
         json_path = os.path.join(output_folder, 'all_groups.json')
         self.json_path.setText(json_path)
-        self.proc_output_folder.setText(os.path.abspath('./out/groups'))
         self.last_built_json_path = json_path
+        self.run_worker(builder.run, {}, logger_name="GroupsBuilder")
 
     def run_process_py(self):
         json_path = self.json_path.text().strip()
@@ -537,96 +627,17 @@ class GroupsExporterGUI(QtWidgets.QDialog):
             fill_blanks=fill_blanks_path_val,
             enable_matrix=self.config.groups_exporter.enable_matrix,
             include_preview=self.config.groups_exporter.include_preview,
-            skip_existing=self.config.groups_exporter.skip_existing
+            skip_existing=self.config.groups_exporter.skip_existing,
+            render_options=self.config.groups_exporter.instrument_render,
         )
         self.log_output.append(f"Starting group export process for JSON: {json_path}")
         self.show_loading('Exporting groups...')
         self.run_worker(processor.run, {}, logger_name="GroupsProcessor")
 
-    def run_worker(self, target_callable, kwargs, logger_name=None):
-        self.run_build_btn.setEnabled(False)
-        self.run_process_btn.setEnabled(False)
-        self.has_output = False
-        self.worker = WorkerThread(target_callable, kwargs, logger_name)
-        self.worker.output_signal.connect(self.on_worker_output)
-        self.worker.finished_signal.connect(self.on_subprocess_finished)
-        self.worker.start()
-
-    def on_subprocess_finished(self, code: int):
-        # Hide the loading and make a sound
-        self.hide_loading()
-        QtWidgets.QApplication.instance().beep()
-
-        # Determine current tab: 0 = Process, 1 = Export
-        is_process_tab = (self.tabs.currentIndex() == 0)
-        context = "Process" if is_process_tab else "Export"
-
-        # Default log append
-        self.log_output.append(f"{context} finished with code {code}\n")
-
-        # --- Handle Cancel ---
-        if self.cancelled or code == -1:
-            self.log_output.append(f"{context} cancelled by user.\n")
-            QMessageBox.information(self, f"{context} Cancelled", f"The {context.lower()} was cancelled.")
-
-        # --- Handle Success ---
-        elif code == 0:
-            if not self.has_output:
-                # Success but no output
-                self.log_output.append(f"{context} finished with no output.\n")
-                QMessageBox.warning(
-                    self,
-                    f"{context} Empty",
-                    f"The {context.lower()} finished successfully but produced no output."
-                )
-            else:
-                self.log_output.append("Done\n")
-
-                if is_process_tab:
-                    # Check if built JSON has groups
-                    if self.last_built_json_path and os.path.exists(self.last_built_json_path):
-                        try:
-                            with open(self.last_built_json_path, 'r') as f:
-                                data = json.load(f)
-                                if isinstance(data, list) and len(data) == 0:
-                                    # Empty JSON result
-                                    self.log_output.append("0 groups processed.\n")
-                                    QMessageBox.warning(self, "No Groups Processed", "The process completed but no groups were found or processed.")
-                                else:
-                                    # Success with groups
-                                    self.tabs.setCurrentIndex(1)
-                                    QMessageBox.information(self, "Process Complete", "Groups JSON file has been successfully built!")
-                        except Exception as e:
-                            # Unexpected JSON read error → still treat as success
-                            self.log_output.append(f"Warning: Could not verify JSON file: {e}\n")
-                            self.tabs.setCurrentIndex(1)
-                            QMessageBox.information(self, "Process Complete", "Groups JSON file built, but verification failed. Proceed with caution.")
-                    else:
-                        # No JSON path set → treat as empty
-                        QMessageBox.warning(self, "No Output JSON", "The process finished but no JSON file was found.")
-
-                else:  # Export tab
-                    show_export_complete_dialog(parent=self, output_folder=self.proc_output_folder.text().strip(), log_content=self.log_output.toPlainText(),
-                                                title="Export Complete", message="Groups export process finished successfully.")
-
-        # --- Handle Failure ---
-        else:
-            error_message = f"{context} failed with exit code {code}"
-            self.log_output.append(error_message + "\n")
-
-            full_log = self.log_output.toPlainText()
-            log_lines = full_log.splitlines()
-            detailed_error_text = "\n".join(log_lines[-20:])
-
-            ErrorDialog(parent=self, title=f"{context} Failed", message=f"The {context.lower()} failed (exit code {code}). See details below.", detailed_text=detailed_error_text, icon=QMessageBox.Icon.Critical).exec()
-
-        # Reset state
-        self.run_build_btn.setEnabled(True)
-        self.run_process_btn.setEnabled(True)
-        self.cancelled = False
-
 
 if __name__ == '__main__':
+    from multiprocessing import freeze_support
+    freeze_support()
     app = QtWidgets.QApplication(sys.argv)
     gui = GroupsExporterGUI()
     gui.show()

@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 
-from PyQt6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QMessageBox
 
 from dialogs.error_dialog import ErrorDialog
 from models.config import Config

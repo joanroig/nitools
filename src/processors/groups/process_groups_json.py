@@ -1,201 +1,34 @@
 import argparse
 import json
-import os
-import re
-import shutil
 import sys
 from pathlib import Path
 
-from models.matrix_config import DEFAULT_MATRIX, MatrixConfig
-from models.pad_filter_config import DEFAULT_PAD_FILTER, PadFilterConfig
-from utils.audio_utils import trim_and_normalize_wav
+from models.matrix_config import MatrixConfig
+from models.pad_filter_config import PadFilterConfig
+from processors.sample_export import SampleCollectionProcessor
+from processors.instrument_render import RenderOptions
 from utils.logger import Logger
 
 logger = Logger.get_logger("GroupsProcessor")
 
 
-def pick_multisample_path(paths):
-    # Prioritize _C4, _C3
-    for p in paths:
-        base = os.path.splitext(p)[0].upper()  # case-insensitive
-        if base.endswith('_C4'):
-            return p
-        if base.endswith('_C3'):
-            return p
-
-    # Then match _C followed by any single digit
-    for p in paths:
-        base = os.path.splitext(p)[0].upper()
-        if re.search(r'_C\d$', base):
-            return p
-
-    # Fallback to the first path
-    return paths[0]
-
-class GroupsProcessor:
+class GroupsProcessor(SampleCollectionProcessor):
     def __init__(
-        self,
-        json_path,
-        output_folder,
-        trim_silence=False,
-        matrix=None,
-        filter_pads=True,
-        pad_filter=None,
-        fill_blanks=None,
-        normalize=False,
-        sample_rate=None,
-        bit_depth=None,
-        enable_matrix=True,
-        include_preview=False,
-        skip_existing=False
+        self, json_path, output_folder, trim_silence=False, matrix=None,
+        filter_pads=False, pad_filter=None, fill_blanks=None, normalize=False,
+        sample_rate=None, bit_depth=None, enable_matrix=True,
+        include_preview=False, skip_existing=False,
+        render_options=None,
     ):
-        self.json_path = json_path
-        self.output_folder = output_folder
-        self.trim_silence = trim_silence
-        self.matrix = matrix if matrix is not None else DEFAULT_MATRIX
-        self.filter_pads = filter_pads
-        self.pad_filter = pad_filter if pad_filter is not None else DEFAULT_PAD_FILTER
-        self.fill_blanks = fill_blanks
-        self.normalize = normalize
-        self.sample_rate = sample_rate
-        self.bit_depth = bit_depth
-        self.enable_matrix = enable_matrix
-        self.include_preview = include_preview
-        self.skip_existing = skip_existing
-
-    def run(self, worker_instance=None):  # Accept worker_instance
-        try:
-            with open(self.json_path, 'r', encoding='utf-8') as f:
-                groups = json.load(f)
-
-            def pad_contains(sample, keywords):
-                if not sample:
-                    return False
-                name = sample.get('name', '')
-                name = name.lower()
-                return any(kw in name for kw in keywords)
-
-            filtered_groups = []
-            if self.filter_pads and self.pad_filter:
-                for group in groups:
-                    if worker_instance and worker_instance.cancel_requested():  # Check for cancellation
-                        logger.info("Groups export cancelled by user.")
-                        return 1  # Return non-zero for cancellation
-                    samples = group.get('samples', [])
-                    match = True
-                    for pad_num, keywords in self.pad_filter.pads.items():
-                        pad_sample = next((s for s in samples if s.get('pad') == pad_num), None)
-                        if not pad_contains(pad_sample, keywords):
-                            match = False
-                            break
-                    if match:
-                        filtered_groups.append(group)
-                groups = filtered_groups
-
-            for group in groups:
-                if worker_instance and worker_instance.cancel_requested():  # Check for cancellation
-                    logger.info("Groups export cancelled by user.")
-                    return 1  # Return non-zero for cancellation
-
-                group_name = group['group']
-                expansion_name = group['expansion']
-                base_path = group['path']
-                samples = group['samples']
-
-                group_folder = os.path.join(self.output_folder, expansion_name, group_name)
-                os.makedirs(group_folder, exist_ok=True)
-
-                pad_to_sample = {}
-                for s in samples:
-                    pad_to_sample[s['pad']] = s
-
-                for original_pad in range(1, 17):
-                    if worker_instance and worker_instance.cancel_requested():  # Check for cancellation
-                        logger.info("Groups export cancelled by user.")
-                        return 1  # Return non-zero for cancellation
-
-                    sample = pad_to_sample.get(original_pad)
-                    # Access the internal dictionary of MatrixConfig
-                    target_pad = self.matrix.pads.get(original_pad, original_pad) if self.enable_matrix else original_pad
-                    suffix = f"{target_pad:02d}_"
-
-                    if sample:
-                        if sample['type'] == 'multisample':
-                            source_rel_path = pick_multisample_path(sample['paths'])
-                        else:
-                            source_rel_path = sample['paths']
-
-                        source_path = os.path.join(base_path, source_rel_path)
-                        if not os.path.isfile(source_path):
-                            logger.warning(f"Source file not found {source_path}")
-                            continue
-
-                        filename = os.path.basename(source_path)
-                        target_filename = suffix + filename
-                        target_path = os.path.join(group_folder, target_filename)
-
-                        if self.skip_existing and os.path.exists(target_path):
-                            logger.info(f"Skipping existing file: {target_path}")
-                            continue
-
-                        try:
-                            trim_and_normalize_wav(source_path, target_path, self.trim_silence, self.normalize, self.sample_rate, self.bit_depth)
-                        except Exception as e:
-                            logger.error(f"Error processing {source_path}: {e}")
-                            shutil.copy2(source_path, target_path)
-
-                        logger.info(f"Copied pad {original_pad:02d} -> target pad {target_pad:02d} file: {target_path}")
-                    else:
-                        if self.fill_blanks:
-                            import random
-                            if os.path.isdir(self.fill_blanks):
-                                wavs = [f for f in os.listdir(self.fill_blanks) if f.lower().endswith('.wav')]
-                                if wavs:
-                                    chosen = random.choice(wavs)
-                                    source_path = os.path.join(self.fill_blanks, chosen)
-                                else:
-                                    source_path = None
-                            else:
-                                source_path = self.fill_blanks
-                            if source_path and os.path.isfile(source_path):
-                                target_filename = suffix + os.path.basename(source_path)
-                                target_path = os.path.join(group_folder, target_filename)
-                                if self.skip_existing and os.path.exists(target_path):
-                                    logger.info(f"Skipping existing file: {target_path}")
-                                    continue
-                                try:
-                                    trim_and_normalize_wav(source_path, target_path, self.trim_silence, self.normalize, self.sample_rate, self.bit_depth)
-                                except Exception as e:
-                                    logger.error(f"Error processing {source_path}: {e}")
-                                    shutil.copy2(source_path, target_path)
-                                logger.info(f"Filled blank pad {original_pad:02d} -> target pad {target_pad:02d} with: {target_path}")
-                            else:
-                                logger.warning(f"No valid file to fill blank pad {original_pad:02d}")
-                if self.include_preview:
-                    preview_rel = group.get('preview')
-                    preview_file = os.path.join(base_path, preview_rel) if preview_rel else None
-                    if not preview_file or not os.path.isfile(preview_file):
-                        preview_file = next(
-                            (p for p in (
-                                os.path.join(base_path, "Groups", "groups", ".previews", group_name + ".mxgrp.ogg"),
-                                os.path.join(base_path, "Groups", "kits", ".previews", group_name + ".mxgrp.ogg"),
-                            ) if os.path.isfile(p)),
-                            None,
-                        )
-                    if preview_file:
-                        preview_wav = os.path.join(group_folder, "00_PREVIEW - " + group_name + ".wav")
-                        if self.skip_existing and os.path.exists(preview_wav):
-                            logger.info(f"Skipping existing preview file: {preview_wav}")
-                            continue
-                        try:
-                            trim_and_normalize_wav(preview_file, preview_wav, self.trim_silence, self.normalize, self.sample_rate, self.bit_depth)
-                            logger.info(f"Included preview sample: {preview_wav}")
-                        except Exception as e:
-                            logger.error(f"Error processing preview {preview_file}: {e}")
-            return 0
-        except Exception as e:
-            logger.error(f"Error processing groups: {e}")
-            return 1
+        self.render_options = RenderOptions.model_validate(render_options or {})
+        super().__init__(
+            json_path, output_folder, kind="group", logger=logger,
+            trim_silence=trim_silence, normalize=normalize,
+            sample_rate=sample_rate, bit_depth=bit_depth, matrix=matrix,
+            enable_matrix=enable_matrix, filter_pads=filter_pads,
+            pad_filter=pad_filter, include_preview=include_preview,
+            skip_existing=skip_existing, fill_blanks=fill_blanks,
+        )
 
 
 def main(
@@ -212,13 +45,17 @@ def main(
     bit_depth: int,
     enable_matrix: bool,
     include_preview: bool,
-    skip_existing: bool
+    skip_existing: bool,
+    render_instruments=False, vst2_folder='', render_note=60,
+    render_velocity=100, render_hold=1.0, render_tail=2.0,
+    render_maschine=False, maschine_plugin='', maschine_cache='',
+    auto_prepare=True, prepare_timeout=120,
 ):
     # Matrix
     if matrix_json:
         with open(matrix_json, 'r', encoding='utf-8') as f:
             loaded_dict = {int(k): v for k, v in json.load(f).items()}
-            matrix = MatrixConfig(loaded_dict)
+            matrix = MatrixConfig(pads=loaded_dict)
     else:
         matrix = MatrixConfig()
 
@@ -226,7 +63,7 @@ def main(
     if filter_pads_json:
         with open(filter_pads_json, 'r', encoding='utf-8') as f:
             loaded_dict = {int(k): v for k, v in json.load(f).items()}
-            pad_filter = PadFilterConfig(loaded_dict)
+            pad_filter = PadFilterConfig(pads=loaded_dict)
     else:
         pad_filter = PadFilterConfig()
 
@@ -247,7 +84,12 @@ def main(
         bit_depth=bit_depth,
         enable_matrix=enable_matrix,
         include_preview=include_preview,
-        skip_existing=skip_existing
+        skip_existing=skip_existing,
+        render_options=dict(enabled=render_instruments, plugin_folder=vst2_folder,
+                            native_enabled=render_maschine, maschine_plugin=maschine_plugin, cache_folder=maschine_cache,
+                            auto_prepare=auto_prepare, prepare_timeout=prepare_timeout,
+                            note=render_note, velocity=render_velocity,
+                            hold=render_hold, tail=render_tail),
     )
     sys.exit(processor.run())
 
@@ -268,6 +110,17 @@ if __name__ == "__main__":
     parser.add_argument("--enable_matrix", action='store_true', help="Enable pad matrix reorder")
     parser.add_argument("--include_preview", action='store_true', help="Include preview samples from groups.previews")
     parser.add_argument("--skip_existing", action='store_true', help="Skip processing if output file already exists")
+    parser.add_argument('--render_instruments', action='store_true', help='Render supported external VST2 instruments (Windows, experimental)')
+    parser.add_argument('--vst2_folder', default='', help='Additional folder containing installed 64-bit VST2 DLLs')
+    parser.add_argument('--render_maschine', action='store_true', help='Render instruments through prepared Maschine 3 kit states (Windows, experimental)')
+    parser.add_argument('--maschine_plugin', default='', help='Installed Maschine 3.vst3 path; detected automatically by default')
+    parser.add_argument('--maschine_cache', default='', help='Prepared kit cache folder; defaults to the NITools user cache')
+    parser.add_argument('--no_auto_prepare', action='store_true', help='Only use previously prepared Maschine kits')
+    parser.add_argument('--prepare_timeout', type=float, default=120, help='Maximum automatic kit loading time in seconds')
+    parser.add_argument('--render_note', type=int, default=60, help='MIDI note number, 0–127 (default: 60)')
+    parser.add_argument('--render_velocity', type=int, default=100)
+    parser.add_argument('--render_hold', type=float, default=1.0, help='Note duration in seconds')
+    parser.add_argument('--render_tail', type=float, default=2.0, help='Release duration in seconds')
 
     args = parser.parse_args()
 
@@ -323,7 +176,12 @@ if __name__ == "__main__":
             bit_depth=args.bit_depth,
             enable_matrix=args.enable_matrix,
             include_preview=args.include_preview,
-            skip_existing=args.skip_existing
+            skip_existing=args.skip_existing,
+            render_instruments=args.render_instruments, vst2_folder=args.vst2_folder,
+            render_note=args.render_note, render_velocity=args.render_velocity,
+            render_hold=args.render_hold, render_tail=args.render_tail,
+            render_maschine=args.render_maschine, maschine_plugin=args.maschine_plugin, maschine_cache=args.maschine_cache,
+            auto_prepare=not args.no_auto_prepare, prepare_timeout=args.prepare_timeout,
         )
     except SystemExit as e:
         sys.exit(e.code)

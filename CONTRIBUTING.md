@@ -56,6 +56,12 @@ PR descriptions should include:
 
 ## 📖 Documentation
 
+Do not contribute proprietary plug-ins, kits, samples, previews, saved states,
+activation data, decompiler output or vendor catalog dumps. Tests must use
+synthetic fixtures or properly licensed material with recorded provenance.
+Redact private paths in public reports. See [release contents](docs/RELEASE_CONTENTS.md)
+and [third-party notices](THIRD_PARTY_NOTICES.md) before adding dependencies or assets.
+
 - Add inline comments where necessary.
 - If your change affects **user-facing behavior**, update the relevant docs.
 

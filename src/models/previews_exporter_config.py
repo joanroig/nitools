@@ -12,7 +12,7 @@ class PreviewsExporterConfig(BaseModel):
     sample_rate: str = Field(default="48000", description="Target sample rate (e.g., '48000')")
     bit_depth: str = Field(default="24", description="Target bit depth (e.g., '24')")
     skip_existing: bool = Field(default=True, description="Skip processing if output file already exists")
-    skip_maschine_folders: bool = Field(default=True, description="Skip folders containing .mxgrp files (Maschine groups)")
+    skip_maschine_folders: bool = Field(default=True, description="Skip .mxgrp.ogg previews (Maschine groups)")
     skip_battery_kits: bool = Field(default=True, description="Skip files ending with .nbkt.ogg (Battery kits)")
     skip_native_browser_preview_library: bool = Field(default=True, description="Skip 'Native Browser Preview Library' folder")
     find_real_instrument_folder: bool = Field(default=True, description="Find real instrument folder for the Preview Library")

@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 
 from models.matrix_config import MatrixConfig
 from models.pad_filter_config import PadFilterConfig
+from models.render_options import RenderOptions
 
 
 class GroupsExporterConfig(BaseModel):
@@ -17,11 +18,12 @@ class GroupsExporterConfig(BaseModel):
     bit_depth: str = Field(default="24", description="Target bit depth (e.g., '24')")
     enable_matrix: bool = Field(default=True, description="Enable pad reorder matrix")
     skip_existing: bool = Field(default=True, description="Skip processing if output file already exists")
+    instrument_render: RenderOptions = Field(default_factory=RenderOptions)
     matrix_config: MatrixConfig = Field(default_factory=MatrixConfig, description="Configuration for pad reordering matrix")
-    filter_pads: bool = Field(default=True, description="Enable pad filtering by keywords")
+    filter_pads: bool = Field(default=False, description="Enable pad filtering by keywords")
     pad_filter_config: PadFilterConfig = Field(default_factory=PadFilterConfig, description="Configuration for pad filtering keywords")
     include_preview: bool = Field(default=True, description="Include preview samples in export")
-    fill_blanks: bool = Field(default=True, description="Fill blank pads with a default sample")
+    fill_blanks: bool = Field(default=False, description="Fill blank pads with a default sample")
     fill_blanks_path: str = Field(default="", description="Path to the sample or folder for filling blank pads. If empty, a default silence sample will be used.")
     show_terminal: bool = Field(default=True, description="Show terminal output at the bottom of the window")
     width: int = Field(default=0, description="Window width")

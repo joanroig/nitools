@@ -1,11 +1,11 @@
-from PyQt6 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from components.version_label import VersionLabel
 from utils.bundle_utils import get_bundled_path
 
 
 class BottomBanner(QtWidgets.QWidget):
-    terminal_toggled = QtCore.pyqtSignal(bool)
+    terminal_toggled = QtCore.Signal(bool)
 
     def __init__(self, initial_terminal_state, parent=None):
         super().__init__(parent)
@@ -17,7 +17,7 @@ class BottomBanner(QtWidgets.QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
 
         # Help button (at the left)
-        self.help_button = QtWidgets.QPushButton()
+        self.help_button = QtWidgets.QPushButton('Help')
         self.help_button.setIcon(QtGui.QIcon(get_bundled_path("resources/icons/question.png")))
         self.help_button.clicked.connect(self._show_help_popup)
         self.help_button.setToolTip("Help")
@@ -34,12 +34,12 @@ class BottomBanner(QtWidgets.QWidget):
         layout.addStretch(1)
 
         # Terminal button (at the right)
-        self.show_terminal_button = QtWidgets.QPushButton()
+        self.show_terminal_button = QtWidgets.QPushButton('Activity log')
         self.show_terminal_button.setIcon(QtGui.QIcon(get_bundled_path("resources/icons/terminal.png")))
         self.show_terminal_button.setCheckable(True)
         self.show_terminal_button.setChecked(self.initial_terminal_state)
         self.show_terminal_button.toggled.connect(self.terminal_toggled.emit)
-        self.show_terminal_button.setToolTip("Click to toggle the terminal visibility.")
+        self.show_terminal_button.setToolTip("Show or hide the activity log")
         layout.addWidget(self.show_terminal_button)
 
         self.setLayout(layout)

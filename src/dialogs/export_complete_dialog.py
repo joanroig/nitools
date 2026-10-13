@@ -1,7 +1,7 @@
 import os
 
-from PyQt6 import QtCore, QtGui, QtWidgets
-from PyQt6.QtWidgets import QMessageBox
+from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6.QtWidgets import QMessageBox
 
 from utils.constants import LOGS_PATH
 from utils.dialog_utils import open_path

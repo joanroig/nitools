@@ -1,6 +1,7 @@
 import os
 
 import qdarktheme
+from PySide6.QtGui import QColor
 
 from utils.bundle_utils import get_bundled_path
 from utils.config_utils import load_config
@@ -37,6 +38,11 @@ def apply_style(style):
     config = load_config()
     custom_color = config.custom_color
     enable_custom_color = config.enable_custom_color
+    accent = QColor(custom_color if enable_custom_color else '#1a73e8')
+    # Preserve the user's accent selection and choose readable button text.
+    brightness = accent.red() * 0.299 + accent.green() * 0.587 + accent.blue() * 0.114
+    additional_qss = additional_qss.replace('@accent@', accent.name()).replace(
+        '@accent-text@', '#17202a' if brightness > 160 else '#ffffff')
 
     custom_colors_dict = {}
     if enable_custom_color:

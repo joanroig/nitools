@@ -1,10 +1,10 @@
-from PyQt6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtWidgets
 from components.no_wheel_spinbox import NoWheelSpinBox
 from models.matrix_config import MatrixConfig
 
 
 class MatrixEditor(QtWidgets.QWidget):
-    matrix_changed = QtCore.pyqtSignal()
+    matrix_changed = QtCore.Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)

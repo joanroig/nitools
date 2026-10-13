@@ -1,10 +1,10 @@
-from PyQt6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtWidgets
 
 from models.pad_filter_config import PadFilterConfig
 
 
 class PadFilterEditor(QtWidgets.QWidget):
-    pad_filter_changed = QtCore.pyqtSignal()
+    pad_filter_changed = QtCore.Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)

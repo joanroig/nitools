@@ -21,7 +21,7 @@
 
 <p align="center">
   <a href="https://github.com/joanroig/nitools/releases">
-    <img alt="Showcase" src="docs/img/showcase.png">
+    <img alt="Maschine Groups export settings and Activity panel" src="docs/img/nitools%20groups%20export.png">
   </a>
 </p>
 
@@ -34,13 +34,13 @@
       <td valign="middle" align="left">
         <p align="center"><b>Created by Moai Beats</b></br>Follow and stream to support me •ᴗ•</p>
         <p align="center">
-          <a href="https://open.spotify.com/artist/5Zt96vfBQXmUB3fs3Qkm5q"><img src="resources/icons/spotify.png" alt="Spotify" width="40"></a>
+          <a href="https://open.spotify.com/artist/5Zt96vfBQXmUB3fs3Qkm5q">Spotify</a>
           &nbsp;&nbsp;
-          <a href="https://music.apple.com/es/artist/moai-beats/1466043534"><img src="resources/icons/applemusic.png" alt="Apple Music" width="40"></a>
+          <a href="https://music.apple.com/es/artist/moai-beats/1466043534">Apple Music</a>
           &nbsp;&nbsp;
-          <a href="http://youtube.com/moaibeats?sub_confirmation=1"><img src="resources/icons/youtube.png" alt="YouTube" width="40"></a>
+          <a href="https://youtube.com/moaibeats?sub_confirmation=1">YouTube</a>
           &nbsp;&nbsp;
-          <a href="https://moaibeats.bandcamp.com"><img src="resources/icons/bandcamp.png" alt="Bandcamp" width="40"></a>
+          <a href="https://moaibeats.bandcamp.com">Bandcamp</a>
         </p>
       </td>
     </tr>
@@ -51,6 +51,8 @@
 ## ⬇️ Download
 
 Pre-built executables for **Windows** and **macOS** are available on the [Releases page](https://github.com/joanroig/nitools/releases).
+
+The changes described below are a **local, unreleased 2.0 candidate**. Published downloads still refer to the previous release. The current GUI uses PySide6-Essentials; the candidate targets Windows 10/11 x64 and macOS 13 or later.
 
 ### 🛠️ Usage
 
@@ -67,9 +69,11 @@ The initial idea was to export Maschine groups to use them in the Roland SP 404 
 - **GUI & CLI:** Use via graphical interface or command line for maximum flexibility.
 - **Portable:** Pre-built executables, no Python installation required.
 - **Cross-Platform:** Supports Windows and macOS.
-- **Maschine Groups Exporter:** Extract and process kits/samples from `.mxgrp` files, ignoring internal VSTs and FX.
+- **Maschine Groups Exporter:** Extract samples from `.mxgrp` files, with optional instrument rendering on Windows through installed VST2 plug-ins or prepared Maschine 3 kits.
 - **NKS Previews Exporter:** Convert NKS audio previews to WAV for one-shot instruments on other platforms.
-- **Battery Kits Exporter (WIP):** Early-stage tool to parse `.nbkt` kits for future export support.
+- **Battery Kits Exporter:** Decode `.nbkt` cell sample references and export the original sample zones.
+- **Consistent workflows:** Kits, Groups and Previews share live progress, cancellation, error reporting and bounded parallel audio conversion.
+- **Readable activity:** Follow new messages, pause by scrolling back, copy the retained log, or open it in a larger reader.
 
 ### ⚠️ Compatibility Note
 
@@ -94,9 +98,16 @@ Mac users should expect additional setup or adjustments. Feel free to open a PR!
 - Options to skip content from Maschine, Battery, or the large 'Native Browser Preview Library'.
 - Option to find the real instrument folder names for previews.
 
-### <img alt="Kits Exporter" src="resources/icons/kits.png" width="16px"> **Battery Kits Exporter (WIP)**
+### <img alt="Kits Exporter" src="resources/icons/kits.png" width="16px"> **Battery Kits Exporter**
 
-- Planned tool for exporting Battery kits, similar in functionality to the Maschine Groups Exporter.
+- Reads serialized cell numbers and complete sample paths instead of reconstructing names from text fragments.
+- Exports all sample zones, repeated references, empty-slot numbering, and cells above 16.
+- Shares audio conversion, matrix, filter, and preview options with the Groups Exporter.
+- Reports missing exact paths and conversion failures as incomplete exports; no fuzzy replacements.
+
+Rebuild old JSON indexes and use a fresh output folder when upgrading from the earlier heuristic parsers. The exporters reject indexes without the current structured-decoder marker. Both exporters preserve every sample zone, including Maschine Audio-module takes. Sample export copies source audio without recreating its native processing. The Groups Exporter also offers experimental instrument rendering. Maschine kits can be prepared automatically during export or in a resumable batch queue; no per-kit manual loading is required for the supported Maschine 3 setup. See the [User Guide](docs/GUIDE.md#optional-instrument-rendering-windows-64-bit) for setup and limitations.
+
+See the [2.0 release notes](docs/RELEASE_NOTES_2_0.md) for upgrade instructions and the [verification record](docs/RELEASE_2_0.md) for tested scope and remaining compatibility checks.
 
 ## 📦 Development
 
@@ -121,22 +132,24 @@ Before you begin, ensure you have the following installed:
 2. **Set up a Python environment with uv:**
 
    ```powershell
-   uv sync --upgrade
+   uv sync --locked
    ```
 
-3. **Install the package in editable mode (optional, if you want the CLI/GUI entry points available):**
+3. **Launch the app:** `uv sync` installs the local package in editable mode. On Windows:
 
 ```powershell
-uv pip install -e .
+./run.ps1
 ```
 
 ### Overview
 
 | Layer    | Tool                      | Path                                               | Purpose                                                        |
 | -------- | ------------------------- | -------------------------------------------------- | -------------------------------------------------------------- |
-| Launcher | **GUI: Launcher**         | `src/launcher.py`                                  | Central entry point; can launch both GUIs.                     |
+| Launcher | **GUI: Launcher**         | `src/launcher.py`                                  | Central entry point for all three exporters.                  |
 | GUI      | **Groups Exporter GUI**   | `src/apps/groups_exporter_gui.py`                  | Extracts and processes **groups/kits** (pads, instruments).    |
 | GUI      | **Previews Exporter GUI** | `src/apps/previews_exporter_gui.py`                | Extracts and processes **audio previews** (short demo sounds). |
+| GUI      | **Battery Kits Exporter** | `src/apps/kits_exporter_gui.py`                    | Decodes Battery cells and exports every sample zone.          |
+| CLI      | **Kits Build**            | `src/processors/kits/build_kits_json.py`            | Creates a structured Battery kit index; export from the GUI.  |
 | CLI      | **Groups Build**          | `src/processors/groups/build_groups_json.py`       | Extract raw **group/kit metadata** into a JSON index.          |
 | CLI      | **Groups Process**        | `src/processors/groups/process_groups_json.py`     | Process groups (trim silence, normalize, etc.).                |
 | CLI      | **Previews Build**        | `src/processors/previews/build_previews_json.py`   | Extract raw **preview metadata** into a JSON index.            |
@@ -162,7 +175,7 @@ uv pip install -e .
 
 3. **Run CLI Tools**
 
-   There are 4 CLI processors that can be launched directly (the GUIs internally call these):
+   The Groups and Previews workflows have CLI commands; Battery also provides a CLI index builder. Battery audio export is available in the GUI.
    - **Groups Build** → Builds `all_groups.json` from library kits.
    - **Groups Process** → Processes `all_groups.json` into individual kits.
    - **Previews Build** → Builds `all_previews.json` from audio previews.
@@ -175,7 +188,7 @@ uv pip install -e .
 Extracts **group/kit metadata** and outputs a combined JSON.
 
 ```powershell
-python src/processors/groups/build_groups_json.py <input_folder> <output_folder> <generate_txt>
+uv run --locked python -m processors.groups.build_groups_json <input_folder> <output_folder> --generate_txt <true|false>
 ```
 
 - `<input_folder>`: Input library folder (e.g. `D:/Libraries/Native Instruments/`)
@@ -185,7 +198,7 @@ python src/processors/groups/build_groups_json.py <input_folder> <output_folder>
 **Example:**
 
 ```powershell
-python src/processors/groups/build_groups_json.py D:/Libraries/Native Instruments/ ./out/ false
+uv run --locked python -m processors.groups.build_groups_json "D:/Libraries/Native Instruments/" ./out/ --generate_txt false
 ```
 
 #### 2. `process_groups_json.py`
@@ -193,7 +206,7 @@ python src/processors/groups/build_groups_json.py D:/Libraries/Native Instrument
 Processes **group JSON files** into cleaned/usable kits.
 
 ```powershell
-python src/processors/groups/process_groups_json.py <all_groups_json> <groups_output_folder> [options]
+uv run --locked python -m processors.groups.process_groups_json <all_groups_json> <groups_output_folder> [options]
 ```
 
 Options:
@@ -210,11 +223,19 @@ Options:
 - `--bit_depth <depth>` → Convert all samples to this bit depth (e.g., `16`)
 - `--include_preview` → Include preview samples from groups .previews
 - `--skip_existing` → Skip processing if output file already exists
+- `--render_instruments` → Render supported external VST2 instrument presets using installed 64-bit plug-ins (Windows)
+- `--vst2_folder <folder>` → Additional VST2 DLL search folder
+- `--render_maschine` → Render internal/other instrument pads through Maschine 3; automatically prepare and cache uncached kits
+- `--no_auto_prepare` → Restrict Maschine rendering to previously prepared kits
+- `--prepare_timeout <seconds>` → Kit loading timeout (default 120; 5–900)
+- `--maschine_plugin <file>` / `--maschine_cache <folder>` → Override the detected Maschine 3 VST3 or prepared-state cache location
+- `--render_note <0–127>` / `--render_velocity <1–127>` → External VST2 note (default 60) and shared velocity (default 100)
+- `--render_hold <seconds>` / `--render_tail <seconds>` → Held note and release length (defaults 1 and 2 seconds)
 
 **Example:**
 
 ```powershell
-python src/processors/groups/process_groups_json.py ./out/all_groups.json ./out/groups/ --trim_silence --normalize --enable_matrix --filter_pads --fill_blanks --fill_blanks_path resources/audio/.wav --sample_rate 44100 --bit_depth 24 --include_preview --skip_existing
+uv run --locked python -m processors.groups.process_groups_json ./out/all_groups.json ./out/groups/ --trim_silence --normalize --sample_rate 48000 --bit_depth 24 --include_preview --skip_existing
 ```
 
 #### 3. `build_previews_json.py`
@@ -222,7 +243,7 @@ python src/processors/groups/process_groups_json.py ./out/all_groups.json ./out/
 Extracts **audio preview metadata** and outputs a combined JSON.
 
 ```powershell
-python src/processors/previews/build_previews_json.py <output_folder>
+uv run --locked python -m processors.previews.build_previews_json <output_folder>
 ```
 
 - `<output_folder>`: Destination folder (e.g. `./out/`)
@@ -230,7 +251,7 @@ python src/processors/previews/build_previews_json.py <output_folder>
 **Example:**
 
 ```powershell
-python src/processors/previews/build_previews_json.py ./out/
+uv run --locked python -m processors.previews.build_previews_json ./out/
 ```
 
 #### 4. `process_previews_json.py`
@@ -238,7 +259,7 @@ python src/processors/previews/build_previews_json.py ./out/
 Processes **preview JSON files** into cleaned/usable audio previews.
 
 ```powershell
-python src/processors/previews/process_previews_json.py <all_previews_json> <previews_output_folder> [options]
+uv run --locked python -m processors.previews.process_previews_json <all_previews_json> <previews_output_folder> [options]
 ```
 
 Options:
@@ -248,7 +269,7 @@ Options:
 - `--sample_rate <rate>` → Convert all samples to this sample rate (e.g., `48000`)
 - `--bit_depth <depth>` → Convert all samples to this bit depth (e.g., `16`)
 - `--skip_existing` → Skip processing if output file already exists
-- `--skip_maschine_folders` → Skip folders containing .mxgrp files (Maschine groups)
+- `--skip_maschine_folders` → Skip `.mxgrp.ogg` group previews, retaining other instrument previews in the library
 - `--skip_battery_kits` → Skip files ending with .nbkt.ogg (Battery kits)
 - `--skip_native_browser_preview_library` → Skip 'Native Browser Preview Library' folder
 - `--find_real_instrument_folder` → Find real instrument folder for the Preview Library
@@ -256,8 +277,24 @@ Options:
 **Example:**
 
 ```powershell
-python src/processors/previews/process_previews_json.py ./out/all_previews.json ./out/previews/ --trim_silence --normalize --sample_rate 44100 --bit_depth 24 --skip_existing --skip_maschine_folders --skip_battery_kits --skip_native_browser_preview_library
+uv run --locked python -m processors.previews.process_previews_json ./out/all_previews.json ./out/previews/ --trim_silence --normalize --sample_rate 44100 --bit_depth 24 --skip_existing --skip_maschine_folders --skip_battery_kits --skip_native_browser_preview_library
 ```
+
+#### 5. Battery kit index
+
+```powershell
+uv run --locked python -m processors.kits.build_kits_json "D:/Libraries/Native Instruments/" ./out/kits/ --generate_txt false
+```
+
+Open **Kits Exporter → 2 Export**, select `./out/kits/all_kits.json`, and choose an export folder. Battery audio export currently uses the GUI.
+
+### Tests
+
+```powershell
+uv run --locked python -m unittest discover -s tests -v
+```
+
+Tests cover binary decoding, reference resolution, audio failures/cancellation, multiprocessing and the shared GUI. The installed-library corpus test skips when its optional local files are absent. CI runs the portable tests on Windows and macOS; this does not replace native application and installed-library checks.
 
 ### Building Executables
 
@@ -266,13 +303,13 @@ The GitHub Actions workflow [create-release.yml](.github/workflows/create-releas
 
 - **Windows:**
   The `bundle_app_windows.ps1` PowerShell script is used.
-  For CI builds (like GitHub Actions), it's run with the `--ci` parameter:
+  Run it from PowerShell:
 
   ```powershell
-  powershell -ExecutionPolicy Bypass -File .\bundle_app_windows.ps1 --ci
+  ./bundle_app_windows.ps1 -CI
   ```
 
-  To run locally, you can omit `--ci` or include it if you want to replicate the CI environment.
+  `-CI` is optional. The versioned ZIP in `dist/` contains the executable and current PDF guide. Its unpacked contents are in `dist/windows/NITools_v<version>/`.
 
 - **macOS:**
   The `bundle_app_macos.sh` bash script is used, which also leverages `create-dmg` to package the `.app` into a `.dmg` installer.
@@ -286,6 +323,8 @@ The GitHub Actions workflow [create-release.yml](.github/workflows/create-releas
   To run locally, specify the desired architecture (`x86_64` or `arm64`) and you can omit `--ci`.
   Ensure `create-dmg` is installed (`brew install create-dmg`) before running the macOS bundling script.
 
+Both scripts use locked dependencies and separate build folders per platform/version. They preserve other builds in `dist/`; rebuilding the same version reuses that version's output paths. The release workflow tests and builds the same commit on all three targets, then creates a **draft** with all packages and SHA-256 checksums. It does not automatically publish the release. See the [2.0 release checklist](docs/RELEASE_2_0.md) for remaining qualification and version-bump instructions.
+
 ## 🤝 Contributing
 
 Contributions welcome!
@@ -293,25 +332,19 @@ Contributions welcome!
 - Open an [Issue](https://github.com/joanroig/nitools/issues)
 - Submit a Pull Request
 
-The tools development was focused on extracting sample paths from binary files instead of doing proper decompiling. See the document [DECISIONS.md](docs/DECISIONS.md) for more insights on how the processing was built if you plan to enhance it.
+Kits and Groups use version-bounded binary decoders for stored sample references. Large Group scans decode across up to eight CPU cores. See [DECISIONS.md](docs/DECISIONS.md) for the supported structures, validation and measured performance.
 
-## ⚖️ Legal Disclaimer
+## ⚖️ Legal and content rights
 
-This project is an **independent, open-source tool** developed for educational and interoperability purposes.
+NITools is an independent interoperability tool, unaffiliated with Native Instruments, Roland, Steinberg or other product vendors. Product names and trademarks identify compatibility; they do not imply endorsement or grant trademark rights.
 
-- It is **not affiliated with, endorsed by, or connected to Native Instruments GmbH**, **Roland Corporation**, or any other company.
-- All product names, trademarks, and brands mentioned (e.g. _Native Instruments_, _Roland_, _Maschine_, _Battery_, etc) are the property of their respective owners and are used strictly for **identification and compatibility purposes**.
-- This project does **not** contain any proprietary source code, file formats, or assets from Native Instruments or Roland.
+The release must not include vendor plug-ins, factory kits, presets, samples, preview audio, prepared Maschine projects, activation data, decompiler output or vendor artwork. NITools implements readers for the supported file structures. Optional rendering uses software and content already installed and authorized on the user's computer. It does not supply those products or bypass their activation.
 
-The software is intended to be used **only with legitimately purchased content** and exclusively for personal use. Users are responsible for ensuring compliance with the license terms of their software and content libraries.
+Use only content you are authorized to access, and check the applicable content and software licenses before exporting or sharing anything. A right to use a sound in music does not necessarily permit redistribution as a sample pack, preset, kit or standalone preview. NITools does not grant those rights. Prepared-state caches and exported audio can contain third-party material; keep them out of public issues, pull requests and release packages.
 
-The authors do **not encourage, condone, or accept responsibility** for:
+NITools' GPL license permits commercial as well as personal use of the software. It does not relicense the input libraries or grant rights to their extracted or rendered content. Applicable law and third-party agreements still matter; this documentation is not legal clearance for a particular library, reverse-engineering activity or use.
 
-- Any unauthorized distribution or misuse of copyrighted material,
-- Any violation of third-party license agreements or terms of service,
-- Any data loss or damage arising from the use of this tool.
-
-This software is provided **“as is”**, without warranty of any kind.
+See [third-party notices](THIRD_PARTY_NOTICES.md) for dependency licenses and [the release-content policy](docs/RELEASE_CONTENTS.md) for packaging checks. Warranty and liability are governed by the [GPL license](LICENSE).
 
 ## 📜 License
 

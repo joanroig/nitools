@@ -1,6 +1,7 @@
 import logging
+import time
 
-from PyQt6 import QtCore
+from PySide6 import QtCore
 
 
 class QtSignalHandler(logging.Handler, QtCore.QObject):
@@ -8,7 +9,7 @@ class QtSignalHandler(logging.Handler, QtCore.QObject):
     A logging handler that emits log records as a PyQt signal,
     adding ANSI escape codes for colored output based on log level.
     """
-    log_signal = QtCore.pyqtSignal(str)
+    log_signal = QtCore.Signal(str)
 
     # ANSI color codes for different log levels
     ANSI_COLORS = {
@@ -39,8 +40,9 @@ class QtSignalHandler(logging.Handler, QtCore.QObject):
 
 
 class WorkerThread(QtCore.QThread):
-    output_signal = QtCore.pyqtSignal(str)
-    finished_signal = QtCore.pyqtSignal(int)
+    output_signal = QtCore.Signal(str)
+    finished_signal = QtCore.Signal(int)
+    progress_signal = QtCore.Signal(int, int, str)
 
     def __init__(self, target_callable, kwargs, logger_name=None):
         super().__init__()
@@ -48,6 +50,8 @@ class WorkerThread(QtCore.QThread):
         self.kwargs = kwargs
         self.logger_name = logger_name
         self._cancel_requested = False  # New cancellation flag
+        self._last_progress_time = 0.0
+        self._last_progress_total = None
 
     def request_cancel(self):
         """Sets the cancellation flag."""
@@ -92,3 +96,13 @@ class WorkerThread(QtCore.QThread):
                 target_logger.removeHandler(handler)
                 target_logger.setLevel(original_level)  # Restore original logger level
             self.finished_signal.emit(return_code)
+
+    def report_progress(self, completed, total, message):
+        now = time.monotonic()
+        # Fast decoders can finish thousands of files per second. Keep the UI
+        # responsive without queuing two screen updates for every file.
+        if (completed == 0 or now - self._last_progress_time >= 0.1 or total != self._last_progress_total
+                or (total > 0 and completed == total)):
+            self._last_progress_time = now
+            self._last_progress_total = total
+            self.progress_signal.emit(completed, total, message)

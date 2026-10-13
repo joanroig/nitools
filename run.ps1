@@ -8,7 +8,7 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
 $repoDir = $PSScriptRoot
 $env:PYTHONPATH = (Join-Path $repoDir "src")
 
-& uv run --project $repoDir python (Join-Path $repoDir "src\launcher.py")
+& uv run --locked --project $repoDir python (Join-Path $repoDir "src\launcher.py")
 if ($LASTEXITCODE -ne 0) {
     throw "NITools run failed."
 }

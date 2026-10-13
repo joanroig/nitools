@@ -1,9 +1,11 @@
 import re
+from html import escape
 
-from PyQt6 import QtGui, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 
 class AnsiTextEdit(QtWidgets.QTextEdit):
+    follow_changed = QtCore.Signal(bool)
     ANSI_COLOR_MAP = {
         "30": "black",
         "31": "red",
@@ -47,27 +49,47 @@ class AnsiTextEdit(QtWidgets.QTextEdit):
         self.setReadOnly(True)
         self.setFont(QtGui.QFont("Consolas", 10))  # Monospaced font for better log readability
         self.max_log_lines = max_log_lines
+        self.document().setMaximumBlockCount(max_log_lines)
+        self.follow_output = True
+        self._updating = False
+        self.verticalScrollBar().valueChanged.connect(self._scroll_changed)
+
+    def _scroll_changed(self):
+        if not self._updating and not self.document().isEmpty():
+            scroll = self.verticalScrollBar()
+            self.set_follow_output(scroll.value() >= scroll.maximum() - 4)
+
+    def set_follow_output(self, enabled):
+        if enabled != self.follow_output:
+            self.follow_output = enabled
+            self.follow_changed.emit(enabled)
+        if enabled:
+            self.verticalScrollBar().setValue(self.verticalScrollBar().maximum())
+
+    def clear(self):
+        super().clear()
+        self.set_follow_output(True)
+
+    def resizeEvent(self, event):
+        self._updating = True
+        try:
+            super().resizeEvent(event)
+            if self.follow_output:
+                self.verticalScrollBar().setValue(self.verticalScrollBar().maximum())
+        finally:
+            self._updating = False
 
     def append(self, text):
+        scroll = self.verticalScrollBar()
+        previous_position = scroll.value()
         html_text = self._ansi_to_html(text)
-        super().append(html_text)
-
-        # Trim old logs
-        doc = self.document()
-        if doc.blockCount() > self.max_log_lines:
-            cursor = QtGui.QTextCursor(doc)
-            cursor.movePosition(QtGui.QTextCursor.MoveOperation.Start)
-            for _ in range(doc.blockCount() - self.max_log_lines):
-                cursor.select(QtGui.QTextCursor.SelectionType.BlockUnderCursor)
-                cursor.removeSelectedText()
-            cursor.deleteChar()  # remove the trailing newline
-            self.setTextCursor(cursor)
-
-        # Ensure scrollbar is at the bottom after all operations (append and trim)
-        final_cursor = self.textCursor()
-        final_cursor.movePosition(QtGui.QTextCursor.MoveOperation.End)
-        self.setTextCursor(final_cursor)
-        self.ensureCursorVisible()
+        self._updating = True
+        try:
+            super().append(html_text)
+            # Keep a selection intact; following moves the view, not the cursor.
+            scroll.setValue(scroll.maximum() if self.follow_output else previous_position)
+        finally:
+            self._updating = False
 
     def _ansi_to_html(self, ansi_text):
         # Regex to find ANSI escape codes
@@ -115,7 +137,7 @@ class AnsiTextEdit(QtWidgets.QTextEdit):
 
     def _apply_styles(self, text, styles):
         if not styles:
-            return text
+            return escape(text).replace(chr(10), '<br>')
 
         html_styles = []
         if 'bold' in styles:
@@ -126,11 +148,20 @@ class AnsiTextEdit(QtWidgets.QTextEdit):
             html_styles.append('text-decoration:underline')
 
         for style in styles:
+            if style == 'color:green':
+                # Routine INFO lines use readable theme text, leaving color
+                # for warnings and errors rather than an all-green terminal.
+                style = 'color:' + self.palette().color(QtGui.QPalette.ColorRole.Text).name()
+            elif style in ('color:red', 'color:yellow'):
+                # Transparent log backgrounds do not expose a useful Base
+                # color. The styled text color still identifies the contrast.
+                dark = self.palette().color(QtGui.QPalette.ColorRole.Text).lightness() > 128
+                style = 'color:' + (('#f28b82' if dark else '#b3261e') if style == 'color:red' else ('#fdd663' if dark else '#8a5900'))
             if style.startswith('color:') or style.startswith('background-color:'):
                 html_styles.append(style)
 
         style_str = ';'.join(html_styles)
-        return f'<span style="{style_str}">{text}</span>'
+        return f'<span style="{style_str}">{escape(text).replace(chr(10), "<br>")}</span>'
 
     def _remove_style_type(self, current_styles, style_type):
         # Remove any existing style of the same type (e.g., only one foreground color at a time)

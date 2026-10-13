@@ -1,26 +1,24 @@
-import json
 import os
 import sys
 
-from PyQt6 import QtCore, QtGui, QtWidgets
-from PyQt6.QtWidgets import QMessageBox
+from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6.QtWidgets import QMessageBox
 
 from components.ansi_text_edit import AnsiTextEdit
+from components.exporter_workflow import ExporterWorkflow
+from components.exporter_layout import ExpandableOptions, activity_panel, audio_options, finish_layout
 from components.bottom_banner import BottomBanner
 from components.no_wheel_combo_box import NoWheelComboBox
 from components.resizable_log_splitter import ResizableLogSplitter
-from dialogs.error_dialog import ErrorDialog
-from dialogs.export_complete_dialog import show_export_complete_dialog
 from models.config import Config
 from processors.previews.build_previews_json import PreviewsJsonBuilder
 from processors.previews.process_previews_json import PreviewsProcessor
 from utils import config_utils
 from utils.bundle_utils import get_bundled_path
 from utils.style_utils import apply_style
-from utils.worker_utils import WorkerThread
 
 
-class PreviewsExporterGUI(QtWidgets.QDialog):
+class PreviewsExporterGUI(ExporterWorkflow, QtWidgets.QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowIcon(QtGui.QIcon(get_bundled_path("resources/icons/previews.png")))
@@ -55,9 +53,13 @@ class PreviewsExporterGUI(QtWidgets.QDialog):
         build_layout = QtWidgets.QVBoxLayout()
 
         # Step 1 label
-        step1_label = QtWidgets.QLabel("Step 1: Build JSON from Previews")
+        step1_label = QtWidgets.QLabel("Find your library previews")
         step1_label.setStyleSheet("font-weight: bold;")
         build_layout.addWidget(step1_label)
+
+        source_note = QtWidgets.QLabel("Find previews in the Native Instruments libraries installed on this computer.")
+        source_note.setWordWrap(True)
+        build_layout.addWidget(source_note)
 
         # Scrollable content
         scroll_content_build = QtWidgets.QWidget()
@@ -72,7 +74,7 @@ class PreviewsExporterGUI(QtWidgets.QDialog):
         output_folder_layout = QtWidgets.QHBoxLayout()
         output_folder_layout.addWidget(self.output_folder)
         output_folder_layout.addWidget(self.output_folder_btn)
-        build_form_layout.addRow('Output folder:', output_folder_layout)
+        build_form_layout.addRow('Index folder', output_folder_layout)
 
         scroll_area_build = QtWidgets.QScrollArea()
         scroll_area_build.setWidgetResizable(True)
@@ -93,9 +95,9 @@ class PreviewsExporterGUI(QtWidgets.QDialog):
         export_layout = QtWidgets.QVBoxLayout()
 
         # Step 2 label
-        step2_label = QtWidgets.QLabel("Step 2: Export Previews")
-        step2_label.setStyleSheet("font-weight: bold;")
-        export_layout.addWidget(step2_label)
+        export_note = QtWidgets.QLabel('Choose an index, destination and audio settings.')
+        export_note.setWordWrap(True)
+        export_layout.addWidget(export_note)
 
         # Scrollable content for Tab 2
         scroll_content_export = QtWidgets.QWidget()
@@ -112,7 +114,7 @@ class PreviewsExporterGUI(QtWidgets.QDialog):
         json_path_layout = QtWidgets.QHBoxLayout()
         json_path_layout.addWidget(self.json_path)
         json_path_layout.addWidget(self.json_path_btn)
-        export_form_layout.addRow('JSON file:', json_path_layout)
+        export_form_layout.addRow('Index file', json_path_layout)
 
         self.proc_output_folder = QtWidgets.QLineEdit()
         self.proc_output_folder.setToolTip('Select the folder where the processed preview samples will be exported.')
@@ -123,17 +125,15 @@ class PreviewsExporterGUI(QtWidgets.QDialog):
         proc_output_folder_layout = QtWidgets.QHBoxLayout()
         proc_output_folder_layout.addWidget(self.proc_output_folder)
         proc_output_folder_layout.addWidget(self.proc_output_folder_btn)
-        export_form_layout.addRow('Output folder:', proc_output_folder_layout)
+        export_form_layout.addRow('Export folder', proc_output_folder_layout)
 
         # --- Options group ---
-        options_group = QtWidgets.QGroupBox('Options')
-        options_layout = QtWidgets.QVBoxLayout()
-        self.skip_existing = QtWidgets.QCheckBox('Skip already processed')
+        self.skip_existing = QtWidgets.QCheckBox('Skip existing files')
         self.skip_existing.setToolTip('If checked, samples that already exist in the output folder will be skipped.')
         self.trim_silence = QtWidgets.QCheckBox('Trim silence')
         self.trim_silence.setToolTip('If checked, leading and trailing silence will be removed from samples.')
         self.normalize = QtWidgets.QCheckBox('Normalize')
-        self.normalize.setToolTip('If checked, audio samples will be normalized to a standard loudness level.')
+        self.normalize.setToolTip('Normalize sample peaks to just below full scale. Silent samples are left unchanged.')
         self.sample_rate = NoWheelComboBox()
         self.sample_rate.addItem('Keep Original', '')
         self.sample_rate.addItem('44100 Hz', '44100')
@@ -147,33 +147,27 @@ class PreviewsExporterGUI(QtWidgets.QDialog):
         self.bit_depth.addItem('32-bit (Warning: SP 404 MK2 does not read 32-bit)', '32')
         self.bit_depth.setCurrentIndex(2)
         self.bit_depth.setToolTip('Bit depth for export.')
-        options_layout.addWidget(self.skip_existing)
-        options_layout.addWidget(self.trim_silence)
-        options_layout.addWidget(self.normalize)
-        options_layout.addWidget(QtWidgets.QLabel('Sample rate:'))
-        options_layout.addWidget(self.sample_rate)
-        options_layout.addWidget(QtWidgets.QLabel('Bit depth:'))
-        options_layout.addWidget(self.bit_depth)
-        options_group.setLayout(options_layout)
-        export_form_layout.addRow(options_group)
+        export_form_layout.addRow(audio_options(self))
 
         # --- Skip Options group ---
         skip_content_group = QtWidgets.QGroupBox('Skip Content')
         skip_content_layout = QtWidgets.QVBoxLayout()
-        self.skip_maschine_folders = QtWidgets.QCheckBox('Skip Maschine folders (.mxgrp)')
-        self.skip_maschine_folders.setToolTip('If checked, folders containing .mxgrp files will be skipped.')
+        self.skip_maschine_folders = QtWidgets.QCheckBox('Skip Maschine group previews (.mxgrp)')
+        self.skip_maschine_folders.setToolTip('Skip preview files ending with .mxgrp.ogg.')
         self.skip_battery_kits = QtWidgets.QCheckBox('Skip Battery kits (.nbkt)')
         self.skip_battery_kits.setToolTip('If checked, files ending with .nbkt.ogg will be skipped.')
-        self.skip_native_browser_preview_library = QtWidgets.QCheckBox("Skip 'Native Browser Preview Library' folder (it's huge!)")
+        self.skip_native_browser_preview_library = QtWidgets.QCheckBox('Skip Native Browser Preview Library')
         self.skip_native_browser_preview_library.setToolTip("If checked, previews from the 'Native Browser Preview Library' will be skipped completely.")
-        self.find_real_instrument_folder = QtWidgets.QCheckBox("Find real instrument folder names for the 'Native Browser Preview Library'")
+        self.find_real_instrument_folder = QtWidgets.QCheckBox('Use instrument names for Native Browser previews')
         self.find_real_instrument_folder.setToolTip('If checked, try to find the real instrument name for the "Native Browser Preview Library" previews.')
         skip_content_layout.addWidget(self.skip_maschine_folders)
         skip_content_layout.addWidget(self.skip_battery_kits)
         skip_content_layout.addWidget(self.skip_native_browser_preview_library)
         skip_content_layout.addWidget(self.find_real_instrument_folder)
         skip_content_group.setLayout(skip_content_layout)
-        export_form_layout.addRow(skip_content_group)
+        self.advanced_options = ExpandableOptions('Content options', [skip_content_group],
+            [self.skip_maschine_folders, self.skip_battery_kits, self.skip_native_browser_preview_library, self.find_real_instrument_folder])
+        export_form_layout.addRow(self.advanced_options)
 
         scroll_content_export_layout.addLayout(export_form_layout)
 
@@ -192,11 +186,12 @@ class PreviewsExporterGUI(QtWidgets.QDialog):
         self.tabs.addTab(self.tab_export, 'Export Previews')
 
         # --- Log/output ---
-        self.log_output = AnsiTextEdit()
+        self.log_output = AnsiTextEdit(self.config.max_log_lines)
         self.log_output.setReadOnly(True)
 
         # Create a splitter to make the log_output resizable
-        splitter = ResizableLogSplitter(self.config, self.tabs, self.log_output)
+        self.activity_panel = activity_panel(self)
+        splitter = ResizableLogSplitter(self.config, self.tabs, self.activity_panel)
         main_layout.addWidget(splitter)
 
         # --- Bottom banner ---
@@ -205,6 +200,7 @@ class PreviewsExporterGUI(QtWidgets.QDialog):
         main_layout.addWidget(self.bottom_banner)
 
         self.setLayout(main_layout)
+        finish_layout(self, 'Library Previews', 'Collect and convert your installed library previews.')
         self.set_step2_enabled(False)
         self.json_path.textChanged.connect(self.on_json_path_changed)
         self.setup_config_signals()
@@ -218,6 +214,8 @@ class PreviewsExporterGUI(QtWidgets.QDialog):
         self.find_real_instrument_folder.setEnabled(not checked)
 
     def closeEvent(self, event):
+        if self.stop_before_close(event):
+            return
         # Save current window size to config
         self.config.previews_exporter.width = self.width()
         self.config.previews_exporter.height = self.height()
@@ -225,110 +223,10 @@ class PreviewsExporterGUI(QtWidgets.QDialog):
         super().closeEvent(event)
 
     def toggle_terminal_visibility(self, state):
-        self.log_output.setVisible(state)
+        self.activity_panel.setVisible(state)
         self.config.previews_exporter.show_terminal = state
         config_utils.save_config(self.config)
 
-    def show_loading(self, message):
-        self.cancelled = False
-        self.progress_dialog = QtWidgets.QProgressDialog(message, 'Cancel', 0, 0, self)
-        self.progress_dialog.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal)
-        self.progress_dialog.setWindowTitle('Please wait')
-        self.progress_dialog.setMinimumDuration(0)
-        self.progress_dialog.canceled.connect(self.cancel_worker)
-        self.progress_dialog.show()
-
-    def hide_loading(self):
-        if self.progress_dialog:
-            self.progress_dialog.close()
-            self.progress_dialog = None
-
-    def cancel_worker(self):
-        if self.worker and self.worker.isRunning():
-            self.worker.request_cancel()  # Request cancellation
-            self.cancelled = True
-            self.worker = None  # Clear the worker reference
-        else:
-            self.run_build_btn.setEnabled(True)
-            self.run_process_btn.setEnabled(True)
-            self.hide_loading()
-
-    def on_worker_output(self, text):
-        self.log_output.append(text)
-        self.has_output = True
-
-    def on_subprocess_finished(self, code: int):
-        # Hide the loading and make a sound
-        self.hide_loading()
-        QtWidgets.QApplication.instance().beep()
-
-        # Determine current tab: 0 = Process, 1 = Export
-        is_process_tab = (self.tabs.currentIndex() == 0)
-        context = "Process" if is_process_tab else "Export"
-
-        # Default log append
-        self.log_output.append(f"{context} finished with code {code}\n")
-
-        # --- Handle Cancel ---
-        if self.cancelled or code == -1:
-            self.log_output.append(f"{context} cancelled by user.\n")
-            QMessageBox.information(self, f"{context} Cancelled", f"The {context.lower()} was cancelled.")
-
-        # --- Handle Success ---
-        elif code == 0:
-            if not self.has_output:
-                # Success but no output
-                self.log_output.append(f"{context} finished with no output.\n")
-                QMessageBox.warning(
-                    self,
-                    f"{context} Empty",
-                    f"The {context.lower()} finished successfully but produced no output."
-                )
-            else:
-                self.log_output.append("Done\n")
-
-                if is_process_tab:
-                    # Check if built JSON has previews
-                    if self.last_built_json_path and os.path.exists(self.last_built_json_path):
-                        try:
-                            with open(self.last_built_json_path, 'r') as f:
-                                data = json.load(f)
-                                if isinstance(data, list) and len(data) == 0:
-                                    # Empty JSON result
-                                    self.log_output.append("0 previews processed.\n")
-                                    QMessageBox.warning(self, "No Previews Processed", "The process completed but no previews were found or processed.")
-                                else:
-                                    # Success with previews
-                                    self.tabs.setCurrentIndex(1)
-                                    QMessageBox.information(self, "Process Complete", "Previews JSON file has been successfully built!")
-                        except Exception as e:
-                            # Unexpected JSON read error → still treat as success
-                            self.log_output.append(f"Warning: Could not verify JSON file: {e}\n")
-                            self.tabs.setCurrentIndex(1)
-                            QMessageBox.information(self, "Process Complete", "Previews JSON file built, but verification failed. Proceed with caution.")
-                    else:
-                        # No JSON path set → treat as empty
-                        QMessageBox.warning(self, "No Output JSON", "The process finished but no JSON file was found.")
-
-                else:  # Export tab
-                    show_export_complete_dialog(parent=self, output_folder=self.proc_output_folder.text().strip(), log_content=self.log_output.toPlainText(),
-                                                title="Export Complete", message="Previews export process finished successfully.")
-
-        # --- Handle Failure ---
-        else:
-            error_message = f"{context} failed with exit code {code}"
-            self.log_output.append(error_message + "\n")
-
-            full_log = self.log_output.toPlainText()
-            log_lines = full_log.splitlines()
-            detailed_error_text = "\n".join(log_lines[-20:])
-
-            ErrorDialog(parent=self, title=f"{context} Failed", message=f"The {context.lower()} failed (exit code {code}). See details below.", detailed_text=detailed_error_text, icon=QMessageBox.Icon.Critical).exec()
-
-        # Reset state
-        self.run_build_btn.setEnabled(True)
-        self.run_process_btn.setEnabled(True)
-        self.cancelled = False
 
     def setup_config_signals(self):
         # Save config on change, the keys here should match the attribute names in PreviewsExporterConfig
@@ -411,6 +309,7 @@ class PreviewsExporterGUI(QtWidgets.QDialog):
     def on_json_path_changed(self):
         enabled = bool(self.json_path.text().strip())
         self.set_step2_enabled(enabled)
+        self.find_real_instrument_folder.setEnabled(enabled and not self.skip_native_browser_preview_library.isChecked())
 
     def choose_output_folder(self):
         folder = QtWidgets.QFileDialog.getExistingDirectory(self, 'Select Output Folder', self.output_folder.text())
@@ -436,12 +335,11 @@ class PreviewsExporterGUI(QtWidgets.QDialog):
         builder = PreviewsJsonBuilder(output_folder=output_folder)
         self.log_output.append(f"Starting JSON build process for output folder: {output_folder}")
         self.show_loading('Building previews JSON...')
-        self.run_worker(builder.run, {}, logger_name="PreviewsBuilder")
 
         json_path = os.path.join(output_folder, 'all_previews.json')
         self.json_path.setText(json_path)
-        self.proc_output_folder.setText(os.path.abspath('./out/previews'))
         self.last_built_json_path = json_path
+        self.run_worker(builder.run, {}, logger_name="PreviewsBuilder")
 
     def run_process_py(self):
         json_path = self.json_path.text().strip()
@@ -489,15 +387,6 @@ class PreviewsExporterGUI(QtWidgets.QDialog):
         self.show_loading('Exporting previews...')
         # Pass the logger name "PreviewsProcessor" to the worker
         self.run_worker(processor.run, {}, logger_name="PreviewsProcessor")
-
-    def run_worker(self, target_callable, kwargs, logger_name=None):
-        self.run_build_btn.setEnabled(False)
-        self.run_process_btn.setEnabled(False)
-        self.has_output = False  # Reset flag before new process
-        self.worker = WorkerThread(target_callable, kwargs, logger_name)
-        self.worker.output_signal.connect(self.on_worker_output)
-        self.worker.finished_signal.connect(self.on_subprocess_finished)
-        self.worker.start()
 
 
 if __name__ == '__main__':

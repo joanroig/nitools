@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nitools"
-version = "1.1.0"
+version = "2.0.0"
 description = "Native Instruments sample tools, kits and previews exporter."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -17,10 +17,10 @@ dependencies = [
   "pydantic>=2.13.4",
   "pyinstaller>=6.21.0",
   "soxr>=1.1.0",
-  "PyQt6>=6.9.1,<6.10",
-  "PyQt6-Qt6>=6.9.0,<6.10",
+  "PySide6-Essentials>=6.10.3,<6.11",
   "pyqtdarktheme-fork>=2.3.6",
   "soundfile>=0.14.0",
+  "pedalboard>=0.9.26,<0.10; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]

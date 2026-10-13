@@ -2,9 +2,9 @@ import os
 import platform
 import subprocess
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QMessageBox, QPushButton
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QMessageBox, QPushButton
 
 from utils.bundle_utils import get_bundled_path
 from utils.constants import LOGS_PATH

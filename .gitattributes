@@ -1,0 +1,2 @@
+# Retain upstream notice bytes, including their original line endings/spacing.
+packaging/notices/** -text -whitespace

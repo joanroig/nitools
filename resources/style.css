@@ -1,16 +1,71 @@
 QPushButton[class="accent"] {
-  background-color: #4caf50;
-  color: white;
-  padding: 10px 20px;
+  background-color: @accent@;
+  color: @accent-text@;
+  border: 1px solid @accent@;
+  border-radius: 6px;
+  padding: 8px 20px;
   font-weight: bold;
 }
 QPushButton[class="accent"]:hover {
-  background-color: #45a049;
+  border-color: palette(highlighted-text);
 }
 QPushButton[class="accent"]:pressed {
-  background-color: #3e8e41;
+  padding-top: 9px;
+  padding-bottom: 7px;
 }
 QPushButton[class="accent"]:disabled {
-  background-color: #a0a0a0;
-  color: #cccccc;
+  background-color: palette(button);
+  border-color: palette(mid);
+  color: palette(mid);
+}
+
+QTabBar::tab {
+  padding: 9px 22px;
+  font-weight: bold;
+}
+QToolButton[class="disclosure"] {
+  padding: 8px;
+  text-align: left;
+  border-radius: 5px;
+}
+QLabel[class="section-title"] {
+  font-weight: bold;
+}
+QGroupBox {
+  margin-top: 12px;
+  padding: 14px 12px 12px;
+}
+QSplitter#exporterSplitter::handle:vertical {
+  background: transparent;
+}
+QFrame#activityPanel {
+  background: transparent;
+  border: 1px solid rgba(128, 128, 128, 90);
+  border-radius: 7px;
+}
+QFrame#activityToolbar {
+  background: rgba(128, 128, 128, 12);
+  border: none;
+  border-bottom: 1px solid rgba(128, 128, 128, 70);
+}
+QFrame#activityToolbar QToolButton {
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+QLabel#activityStatus {
+  background: rgba(128, 128, 128, 22);
+  border: 1px solid rgba(128, 128, 128, 70);
+  border-radius: 8px;
+  padding: 2px 8px;
+}
+QLabel#activityStatus[busy="true"] {
+  border-color: @accent@;
+}
+QLabel#activityCount {
+  color: palette(placeholder-text);
+}
+QTextEdit#activityLog {
+  border: none;
+  background: transparent;
+  padding: 0;
 }

@@ -1,14 +1,16 @@
 import argparse
 import json
+import os
 import platform  # Added import
 import sys
+import time
 from pathlib import Path
 
 # Conditional import for winreg
 if platform.system() == "Windows":
     import winreg
 
-from utils.constants import LOGS_PATH
+from processors.index_utils import report_progress
 from utils.logger import Logger
 
 logger = Logger.get_logger("PreviewsBuilder")
@@ -99,15 +101,32 @@ def get_ni_content_paths():
         return []
 
 
-def collect_samples_from_path(instrument_name: str, content_dir: Path):
+def collect_samples_from_path(instrument_name: str, content_dir: Path, worker_instance=None, progress=None):
     """Collect all .ogg files and their corresponding output paths from a given content directory."""
-    if not content_dir or not content_dir.exists():
-        return []
+    if not content_dir or not content_dir.is_dir():
+        raise FileNotFoundError(f"Library folder does not exist: {content_dir}")
 
     samples = []
-    for folder in content_dir.rglob(".previews"):
-        if folder.is_dir():
-            for ogg_file in folder.glob("*.ogg"):
+    last_progress = 0
+
+    def failed(error):
+        raise error
+
+    for root, directories, files in os.walk(content_dir, onerror=failed):
+        if worker_instance and worker_instance.cancel_requested():
+            break
+        directories.sort()
+        now = time.monotonic()
+        if progress and now - last_progress >= 0.1:
+            progress(len(samples), root)
+            last_progress = now
+        if Path(root).name.lower() == '.previews':
+            for filename_on_disk in sorted(files):
+                if worker_instance and worker_instance.cancel_requested():
+                    break
+                if not filename_on_disk.lower().endswith('.ogg'):
+                    continue
+                ogg_file = Path(root) / filename_on_disk
                 # Remove specific extensions from the filename if present
                 filename = ogg_file.stem
                 extensions_to_strip = {".nkm", ".nabs", ".nkl", ".mxinst", ".nkt", ".nrkt", ".nbkt", ".nksf", ".nksn", ".nki", ".nkbt", ".nfm8", ".mxsnd", ".nmsv", ".mxgrp", ".nksr"}
@@ -119,7 +138,7 @@ def collect_samples_from_path(instrument_name: str, content_dir: Path):
 
                 samples.append({
                     "instrument": instrument_name,
-                    "ogg_path": str(ogg_file),
+                    "ogg_path": str(ogg_file.resolve()),
                     "wav_name": f"{filename}.wav",
                 })
     return samples
@@ -132,28 +151,63 @@ class PreviewsJsonBuilder:
     def run(self, worker_instance=None):
         try:
             output_path = Path(self.output_folder)
-            output_path.mkdir(exist_ok=True)
+            output_path.mkdir(parents=True, exist_ok=True)
 
             all_samples = []
 
             # Get content paths based on OS
-            ni_content_paths = get_ni_content_paths()
+            logger.info("Discovering installed Native Instruments libraries...")
+            report_progress(worker_instance, 0, 0, "Discovering installed libraries...")
+            ni_content_paths = []
+            roots = set()
+            for name, path in sorted(get_ni_content_paths(), key=lambda item: (str(item[1]).casefold(), item[0])):
+                key = str(path.resolve()).casefold()
+                if key not in roots:
+                    ni_content_paths.append((name, path))
+                    roots.add(key)
+            seen, errors = set(), []
+            total = len(ni_content_paths)
 
-            for inst_name, content_dir_path in ni_content_paths:
+            for number, (inst_name, content_dir_path) in enumerate(ni_content_paths, 1):
                 if worker_instance and worker_instance.cancel_requested():
                     logger.info("Previews JSON build cancelled by user.")
                     return 1  # Return non-zero for cancellation
 
-                logger.info(f"Collecting samples for: {inst_name} from {content_dir_path}")
-                all_samples.extend(collect_samples_from_path(inst_name, content_dir_path))
+                logger.info("[%s/%s] Processing previews: %s", number, total, inst_name)
+
+                def progress(found, folder):
+                    report_progress(worker_instance, number - 1, total, f"{number - 1}/{total} libraries processed — {inst_name}\n{len(all_samples)} indexed · {found} found in current library · {len(errors)} errors\n{folder}")
+
+                progress(0, content_dir_path)
+                try:
+                    samples = collect_samples_from_path(inst_name, content_dir_path, worker_instance, progress)
+                    for sample in samples:
+                        key = os.path.normcase(sample['ogg_path'])
+                        if key not in seen:
+                            all_samples.append(sample)
+                            seen.add(key)
+                    logger.info("[%s/%s] Finished %s: %s previews found; %s unique previews indexed.", number, total, inst_name, len(samples), len(all_samples))
+                except OSError as exc:
+                    errors.append({'path': str(content_dir_path), 'error': str(exc)})
+                    logger.error("Could not scan %s: %s", content_dir_path, exc)
+                report_progress(worker_instance, number, total, f"{number}/{total} libraries processed\n{len(all_samples)} previews indexed · {len(errors)} errors")
+
+            if worker_instance and worker_instance.cancel_requested():
+                logger.info("Previews JSON build cancelled by user.")
+                return 1
 
             # Save to JSON
             output_json_path = output_path / "all_previews.json"
             with open(output_json_path, "w", encoding="utf-8") as f:
-                json.dump(all_samples, f, indent=4)
+                json.dump(all_samples, f, indent=2, ensure_ascii=False)
 
-            logger.info(f"Exported {len(all_samples)} samples to {output_json_path}")
-            return 0  # Success
+            report_path = output_json_path.with_suffix('.report.json')
+            report_path.write_text(json.dumps({'libraries': total, 'indexed': len(all_samples), 'errors': errors}, indent=2, ensure_ascii=False), encoding='utf-8')
+            incomplete = errors or not all_samples
+            log = logger.error if incomplete else logger.info
+            log("Preview index %s: %s previews, %s errors. Saved to %s; details: %s",
+                'incomplete' if incomplete else 'complete', len(all_samples), len(errors), output_json_path, report_path)
+            return 1 if incomplete else 0
         except Exception as e:
             logger.error(f"Error building previews JSON: {e}")
             return 1  # Error

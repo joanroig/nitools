@@ -1,77 +1,174 @@
-# Parsing Decisions
+# Binary sample-reference decoding
 
-This document outlines the key decisions and parsing rules applied to extract the maximum amount of usable data from `.mxgrp` files.
+NITools exports the original samples referenced by supported Battery kits and Maschine groups. Sample export retains every stored zone without applying effects, envelopes, velocity/key ranges or tuning. Groups additionally offers opt-in instrument rendering on Windows, through installed VST2 instruments or prepared Maschine 3 states; this separate path is described below.
 
-The initial focus was on **Battery** since it exclusively supports sample files. However, extracting sample paths from Battery proved more difficult than from **Maschine**.  
-For this reason, the **Maschine Parser** was implemented first, prioritizing sample extraction while discarding internal sound generators and VST references.
+## Data flow
 
-## Maschine vs. Battery
+| Stage | Battery `.nbkt` | Maschine `.mxgrp` |
+| --- | --- | --- |
+| Container | Bounded NI Hsin object/class records | Bounded NI Hsin object/class records |
+| Payload | FastLZ level 1/2 decoder, then inner NI document | Portable Boost archive, validated profiles for versions 10 and 12–19 |
+| References | Length-delimited legacy chunks; UTF-16 component path table | Complete length-prefixed UTF-8 strings in validated sample-reference records |
+| Assignment | Zone-to-cell and zone-to-sample-table indexes; stored grid dimensions | Ordered 16-Sound vector; validated Channel and sample-map frames |
+| Output | Every cell's sample zones, including duplicate references | Every Sound's sample references, including duplicate references |
 
-Maschine can use internal sound generators (e.g., for a Kick), while Battery relies entirely on sample files:
+The runtime does not depend on Rea, Ghidra, Java, or Native Instruments executables. Rea/Ghidra are research tools for investigating native serialization; the app uses small deterministic Python readers. No native code or proprietary kit fixtures are bundled.
 
-![Maschine vs Battery Kit Comparison](img/maschine%20vs%20battery.png)
+## Battery
 
-Because of the complexity of exporting anything else than samples, all non-sample properties are ignored during extraction.
+`src/formats/ni_container.py` follows NI object lengths and base-class lengths, with bounds and nesting checks. The compressed object contains an explicit compressed length. FastLZ decoding starts after its five-byte header, handles extended lengths and far references, and rejects invalid back-references rather than padding damaged output.
 
-## Maschine `.mxgrp` Parsing Rules
+`src/formats/battery.py` follows the decompressed document's chunk lengths and counts. Chunk 75 contains the path table: parent-directory, directory, and filename tokens with UTF-16 text. Joining these serialized components is the format's path representation; names are never repaired or inferred from neighboring text.
 
-Maschine can have single samples or multiple samples assigned to a pad, samples can be assigned to regions. To simplify, we call pads with single samples `sample` and pads with multiple samples `multisample`.
+The kit contains a fixed 128-cell capacity with a stored visible row/column count. Cell IDs use a 16-column internal stride; exported pad numbers use the visible grid in row-major order. A zone contains a cell ID and a sample-table index. Sample-table order is **not** pad order. Empty cells retain their positions, and grids larger than 4 by 4 are supported.
 
-The goal is to get a 16-sound pack for each Maschine group, so in the final export the tool will select the best sample from each multisample.
+The reader currently supports the observed Battery 4 container, path-table version 2, and known cell/zone property layouts. Unknown path tokens, property sizes, invalid indexes, malformed lengths, and zones outside the stored grid fail explicitly.
 
-- **Expansion Name**  
-  Extracted from the two lines following the keyword `serialization::archive`.
+## Maschine
 
-  - If these two lines differ, the parent folder name is used as a fallback.
+`src/formats/maschine.py` is a partial reader for the observed portable archive versions, not a complete implementation of every Boost class used by Maschine. It validates the archive signature/version, Group header, 16-Sound vector, tracked Channel name-property frames, sample-reference class metadata, object IDs, string lengths, and decoded reference counts. `maschine_modules.py` also reads Audio-module Take/FileLocation records and PluginHost identity/length-delimited state. Instrument DSP and unrelated effect data remain opaque.
 
-- **Kit Name**  
-  Always derived from the `.mxgrp` file name, trimmed to remove spaces.
+Boost archive versions and NI Group/Sound class versions are independent. Profiles cover the observed combinations instead of calculating one version from another. Older parameter records have different object-ID counts and variable-width integer values. The Sampler and Zone class IDs come from their actual registrations; earlier plugins can register common base classes and change those IDs. Library display names and product identifiers may differ. Empty FileLocation records count as serialized zones but produce no missing-file request. Groups containing only instruments, effects or external MIDI keep all sixteen slots with no fabricated sample references.
 
-- **Pad Assignment**  
-  Pads are assigned sequentially starting from **1** for each sample or multisample.
+The reader locates validated binary frames inside that version-bounded archive. It does not extract printable text, merge path fragments, infer multisamples from nearby library names, deduplicate references, or select a representative note by filename. Unknown frame layouts are unsupported; the supported version set should only expand with new fixtures and structural evidence.
 
-  - No wraparound occurs (pad numbers can exceed 16).
-  - A warning is printed if more than 16 pads are detected.
+Targeted Ghidra analysis of Maschine 2 (SHA-256 `29cbc4c6f085f1d0d8ac8ff6302d39a988085adf3e0c455360c369f536923216`) confirms the Group's `ObjectVector<Sound>` member and the Sampler's `ObjectVector<Zone>` member. The native vector loader reads a declared count and deserializes entries in order. Research scripts, symbol mappings, and pseudocode stay in ignored `tmp/rea-feasibility/`; they are not application dependencies.
 
-- **Sample Path Handling**
+Stored path strings, path kinds and offsets are retained in `sample_references`. Resolution translates the known `//Samples/` and legacy `/Samples/` library namespaces for alias paths to the selected library's `Samples` directory without altering the stored reference. A moved library uses the library root discovered from the group location. Absolute FileLocation paths remain absolute; unavailable paths fail instead of triggering a basename search.
 
-  - Sample paths split across multiple lines are merged.  
-    (e.g., if a line does not end with `.wav` but the next line does, and the path begins with `Samples/`, `//Samples/`, or `*Samples/`).
-  - Only paths starting with `Samples/`, `//Samples/`, or `*Samples/` are considered valid.
-  - All other paths (e.g., `C:/`, `/Users/`, VST references) are ignored.
+## Index and export contract
 
-- **Multisample Detection**
+New indexes carry `parser: "structured-v1"`; old heuristic indexes must be rebuilt. Builders produce a `.report.json` sidecar listing decoded files and per-file errors. A partially decoded library returns a failure status even when its successfully decoded records are saved.
 
-  - A multisample is identified when a sample’s preceding line matches the expansion name  
-    (or appears within the previous 4 lines, skipping garbage lines).
-  - Consecutive samples with this property are grouped into a multisample.
-  - If a multisample contains only one sample, it is downgraded to a regular sample.
+The shared exporter resolves a complete reference against its explicit `sample_root`. There is no fuzzy matching, filename repair, or cross-library search. Missing files and audio conversion errors make the run incomplete and appear in the log. The exporter retains repeated references and each sample-bearing pad's original number unless the user enables matrix remapping.
 
-- **Multisample Export**
+Both exporters retain the sample stem: single-zone cells use `NN_Sample.wav`; layered cells use `NN_ZZ_Sample.wav`. This naming preserves pad and zone order while making the files recognizable. Expansion and kit/group names form the output folders. Colliding destination folders or invalid matrix mappings fail explicitly. Existing-file skipping is an explicit option; use a fresh folder for the first export after rebuilding an old index.
 
-  When exporting multisamples, the goal is to select a single representative sample per multisample. The selection follows a priority order based on note designation in the filename:
+Preview export converts an existing preview to WAV. It never renders instruments or effects. Filling blank slots is optional and does not resolve missing references. New configurations disable pad filtering and blank filling; existing saved preferences remain in effect.
 
-  1. First, select the sample ending with `_C4` (case-insensitive).
-  2. If `_C4` is not found, select `_C3`.
-  3. If neither `_C4` nor `_C3` exists, select the sample ending with `_C*`, where `*` is any **single digit** (e.g., `_C1`, `_C5`).
-  4. If no samples match the above, select the first sample in the multisample.
+## Verification
 
-  This ensures consistency in exported kits, prioritizing central octave samples (`C3`, `C4`) while maintaining a fallback for any single-note multisample.
+Synthetic tests cover malformed containers, FastLZ extensions/back-references, Unicode paths, cell/zone assignments, duplicate layers, missing paths, output collisions, and GUI worker success/failure reporting. They contain no proprietary library data. Run:
 
-- **Cleanup Rules**
+```powershell
+.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
 
-  - Consecutive duplicate sample paths are removed.
-  - Empty multisamples are deleted.
-  - Kits with no valid samples are skipped, with a warning printed.
-  - Garbage lines (length = 4 or containing disallowed characters) are ignored during multisample grouping.
+Local corpus qualification is kept under ignored `tmp/structured-qualification/`, with JSON indexes, exported samples, source/output SHA-256 manifests, and result summaries. It establishes compatibility with those input files; it is not a claim that every historical or future NI serialization variant is supported.
 
-- **Output Format**  
-  Each parsed kit outputs:
-  - Expansion name
-  - Kit name
-  - Base path
-  - List of samples, including:
-    - Type (sample or multisample)
-    - Name
-    - Pad number
-    - File paths
+On 2026-10-13, all 159 local Battery kits and 139 Maschine groups decoded and exported successfully. All 5,485 raw sample exports matched their resolved source files by SHA-256, with zero missing references or export errors and unchanged input kit/group files. Offscreen Qt workflow checks rebuilt both complete indexes and exported 112 converted WAVs (including two previews) at 48 kHz / PCM24. These checks verify code, GUI worker behavior, and audio readability; native application playback and instrument/effect reproduction are not part of them.
+
+
+## Performance and live progress
+
+FastLZ back-references copy byte ranges or repeated overlap patterns in bulk. Maschine frame candidates are found with an overlapping binary lookahead; all existing structural checks still run, and UTF-8 decoding waits until the candidate satisfies those checks. The optimized builders produced identical JSON data across the local 298-file corpus.
+
+Audio conversion uses at most four threads and eight pending jobs. Source resolution, collision checks, pad/zone naming, collection order, and counters remain on the coordinating worker. The queue drains before reporting a kit complete. Cancellation is checked before conversion and before replacing the destination; the exporter waits for active jobs to stop and removes their temporary files. Raw copies remain sequential. Audio metadata and samples are read through one libsndfile handle.
+
+Each kit/group logs a start and completion line. Qt receives progress with the current collection and cumulative exported/skipped/problem counts; file updates are limited to ten per second, while collection boundaries always update. The progress dialog stays open until the worker has finished.
+
+One local before/after comparison on 2026-10-13 (Ryzen 9 5900X, existing filesystem cache, fresh destination folders, 48 kHz / PCM24 with trimming, normalization and previews) measured:
+
+| Operation | Before | After |
+| --- | ---: | ---: |
+| Index 159 Battery kits | 7.98 s | 2.16 s |
+| Index 139 Maschine groups | 8.68 s | 5.57 s |
+| Export Battery samples + previews | 62.06 s | 39.04 s |
+| Export Maschine samples + previews | 56.78 s | 32.06 s |
+
+All 5,783 converted files had identical SHA-256 hashes after accounting for Battery's newly retained filenames. Timing varies with storage, file lengths, options and concurrent activity. Benchmarks and manifests are under ignored `tmp/performance-20261013/`.
+
+## Unified workflows and expanded installed-library check
+
+Kits, Groups and Previews share `ExporterWorkflow` for operation identity, progress, completion checks and cancellation. Controls remain disabled until the QThread has stopped; closing an active window requests cancellation and waits. Processing retains the chosen export destination. All builders report discovery and processing progress and produce index reports; an empty or incomplete index is a failure. The log widget uses Qt's bounded block storage and escapes filenames before HTML rendering.
+
+`AudioExporter` provides atomic output writes, a bounded conversion queue and cancellation checks to all three exporters. Previews now reports missing files and conversion failures instead of returning success, checks output containment/source overwrite/collisions, handles unmatched instrument IDs without stale state, and deduplicates overlapping library scans. Distinct previews with the same destination are reported instead of silently overwriting one another. No basename search is used.
+
+The expanded 2026-10-13 check read all **5,849** `.mxgrp` files installed under `D:\Libraries\Native Instruments`, including the version-10 Amplified Funk files. All decoded successfully and all **140,354** nonempty sample references resolved to existing files. This checks reference decoding and resolution, not 140,354 rendered/exported sounds. The installed preview scan indexed **210,012** unique files. A matched 120-preview conversion took **3.58 s** with the previous serial exporter and **1.12 s** with the shared exporter; every resulting WAV was byte-identical.
+
+The test suite has 62 passing tests, including synthetic legacy layouts, optional parameter values, empty zones, incorrect zone counts, preview failures/collisions, and live process/export/cancel GUI checks across all three tools. Offscreen GUI workers additionally indexed 110 Battery kits, 48 Amplified Funk groups and 345 previews, then produced 175 readable 48 kHz PCM24 WAVs without errors. Evidence, screenshots and qualification scripts remain under ignored `tmp/unified-exporters/`. Native app playback and macOS qualification are not included.
+
+## Full-library Group speed regression and fixed progress geometry
+
+A subsequent profile identified Channel-name candidate scanning as over 98% of decode time. The initial version-10 support tried almost every zero byte in legacy plugin payloads. Candidate selection now requires a canonical tracked ID, the known name-property metadata and following parameter IDs in the binary filter. Every existing integer, string length, UTF-8, property-order and sample-zone check still runs. This does not introduce a fallback path extractor.
+
+Scans of at least 64 groups use a Windows-compatible spawn process pool, capped at eight workers and two pending batches per worker, with 16 files per batch. The coordinator consumes results in source order and owns logs, TXT filenames and the index. This preserves deterministic outputs and bounds queued work. Cancellation drops queued batches and waits for active workers before releasing the GUI. The frozen launcher dispatches multiprocessing workers before importing Qt or running the single-instance check.
+
+Matched full-library runs on 2026-10-13, with TXT diagnostics enabled, logging disabled for the timing comparison, cached inputs and fresh output folders, measured:
+
+| Group builder | Elapsed | Groups indexed |
+| --- | ---: | ---: |
+| Original heuristic builder | 16.36 s | 5,661 |
+| Structured builder before this fix | 275.20 s | 5,849 |
+| Optimized decoder, four workers | 17.77 s | 5,849 |
+| Optimized decoder, eight workers | 14.75 s | 5,849 |
+
+All 5,849 records from each optimized run exactly matched the preceding structured builder, excluding only the different TXT destination paths. The original builder omitted 188 groups, so its speed is context rather than an equivalent correctness result. These are index-builder timings, not audio-export timings or a promise of identical results on other storage.
+
+All three workflows now use a fixed-size progress dialog with two reserved text lines, middle elision and full-text tooltips. Updating progress does not resize or recenter it. Cancellation leaves a visible disabled Cancel button until the worker stops. Qt progress signals are limited to ten per second while retaining initialization and completion updates.
+
+The suite now has 66 passing tests, including long/empty/Unicode Channel names, integer-width boundaries, actual spawned decoding, per-file failures, ordered results, bounded cancellation and stable dialog geometry after user movement. The three offscreen GUI workflows also rebuilt their indexes and exported 175 readable WAVs again. A separate full Group run through the actual Qt worker, with normal logging and TXT output enabled, finished in 21.76 seconds with 5,849 records, zero errors, 159 observed progress updates and unchanged dialog geometry. The packaged Windows executable also decoded 98 representative installed files through its embedded process pool, matching serial results and bypassing GUI startup in worker processes. The GUI check is offscreen, not native UI/playback acceptance. Benchmark snapshots and current evidence are in ignored `tmp/groups-speed-fix/`.
+
+## Exporter UI polish
+
+The exporters share headings, numbered workflow tabs, a compact two-column audio layout and expandable pad/content options. Existing preferences remain active when a section is collapsed; its heading and tooltip summarize enabled options. Actions stay outside the scrollable form. The activity panel provides status and clearing, respects the configured line limit, preserves a user's scroll position, and reserves warning/error colors for problems. Filenames are escaped in uncolored log messages as well as colored ones. Primary actions respect the configured accent color.
+
+Offscreen checks cover all three windows in dark/light themes at 900×780 and 800×600, with expanded options and activity logs. The 67-test suite passes, including preference retention, collapse/expand, log visibility/clearing and scroll retention. Real GUI workers rebuilt the same 110-kit, 48-group and 345-preview selections and exported 175 readable 48 kHz PCM24 files with zero errors. Screenshots and results are in ignored `tmp/ui-polish/`; native desktop interaction and playback are not covered by these checks.
+
+The initial UI checks missed the owner's saved `[302, 422]` divider sizes: the native 800×749 window gave most of its space to an empty log and clipped the audio controls. The shared splitter now restores a compact log height, directs additional space to the form and bounds Activity to a quarter of the splitter (with a 96-pixel minimum). Sample rate and bit depth labels sit beside their fields to save another row. Existing export preferences are retained.
+
+The 68-test suite includes the real stylesheet, all three exporters, saved `[302, 422]` and `[10, 1000]` layouts, resizing to 800×600/800×749/1200×900, expansion and log visibility. At 800×749 the complete common export form is visible without scrolling; at 800×600 the form can scroll and the action stays outside it. On 2026-10-13, the packaged `NITools-layoutfix-20261013` executable was also opened and inspected on the Windows desktop: Process and Export tabs in all three tools, plus scrolling expanded Group options and hiding/reopening Activity. This native check verifies the layout, not a new audio export or playback run. Build and regression evidence is in ignored `tmp/ui-layout-fix/`.
+
+## Activity reader and 2.0 release preparation
+
+The log now sits in one compact Activity card with a status badge, retained message count and an explanatory empty state. Follow pauses when scrolling back; appending output preserves selection and scroll. Copy and Clear act on retained messages; Clear is disabled while busy. Open log creates a resizable snapshot using a cloned document so wrapping in the reader cannot disturb the compact view. Light/dark warning colors use foreground lightness, since the new transparent log background is not a reliable theme indicator.
+
+The 68 tests were extended to cover these controls, selection preservation and reader isolation. Current Qt workflows again indexed 110 kits, 48 groups and 345 previews and exported 175 readable 48 kHz PCM24 WAVs without errors. The activity build's frozen process pool matched serial decoding for 98 installed files. Native Windows inspection also confirmed the populated card and larger reader after the owner's complete 5,849-group run. Evidence is in ignored `tmp/activity-panel/` and `tmp/release2-audit/`.
+
+The release audit found that the old workflow force-pushed a tag before testing/building and published independently from matrix jobs, while bundlers deleted the entire `dist/` and `build/` trees. Tests now precede each build, every platform checks out the same commit, artifacts are collected before creating one draft, and existing tags are never overwritten. Bundlers use version/platform-specific paths and locked dependencies; the lockfile's project version was corrected without changing dependency versions. README commands, guide screenshots and upgrade instructions have been refreshed. Remaining platform and release checks are recorded explicitly in [RELEASE_2_0.md](RELEASE_2_0.md).
+
+The revised Windows bundler completed from a different working directory and preserved seven earlier build folders. Its ZIP passed integrity checks and the executable again matched serial decoding for 98 files. The PDF guide uses fixed-height image containers to move screenshots intact across page breaks; compression reduced its size while preserving the images. All ten rendered pages were reviewed, including current Launcher, Configuration and all six workflow-tab screenshots. Workflow actionlint, bundler syntax, lockfile consistency and the 68-test suite pass locally. No GitHub issue or pull request was open at the final check; GitHub runner execution, native macOS and clean-machine/playback acceptance remain unverified.
+
+## Optional instrument rendering and Audio-module recovery
+
+The original `.mxgrp` remains the authority. `maschine_modules.py` reads length-delimited PluginHost identity/state and Audio-module Take vectors inside each Sound's bounds. Instrument chunks are included only for rendering, not written into indexes. Built-in synth modules are identified separately from effects and input slots. Audio takes now follow their stored FileLocation records, preserving counts and exact paths.
+
+Direct external rendering uses the public VST2 ABI in a disposable Windows process. It checks plug-in IDs and state support, keeps MIDI buffers alive through the audio callback, compensates reported latency, and rejects invalid or silent audio. Plug-in crashes and timeouts become pad errors instead of terminating the GUI. The normal exporter still controls skipping, conversion and atomic output replacement.
+
+Internal synthesis uses the user's installed Maschine 3 VST3 through Pedalboard. Its saved-state interface accepts complete projects; opening an `.mxgrp` in standalone Maschine does not populate the hosted plug-in. `maschine_loader.py` automates the editor's native Windows OLE file-drop path on the isolated host's main thread, targeting A1 in a fresh project's default Ideas layout. It sends no desktop mouse/keyboard input and never attaches to standalone Maschine. The in-process OLE target property and layout are version-sensitive and qualified on Maschine 3.7.1, not a public NI batch API. `maschine_project.py` verifies the NI/VST3 containers, archive version 20, Group name and all 16 Sound names, then enables the validated Drumkit routing property and updates container lengths. It accepts both untouched and overridden Off states. Unknown layouts fail rather than guessing. No proprietary template is shipped; an empty project comes from the installed engine itself. Assisted single-kit preparation remains a fallback.
+
+Prepared project states are keyed by original kit bytes and installed plug-in identity/size/mtime, with checksum receipts. A kit or plug-in change requires preparation again. One isolated Maschine process is reused for the instrument pads of a kit, restoring saved state before each note. MIDI notes 48–63 address pads 1–16 at their saved pitches. Custom routing and non-primary outputs are outside the qualified setup. This produces a single rendered note per identified instrument pad; sample pads retain their raw-source behavior.
+
+Automatic preparation is enabled within the opt-in Maschine rendering route. It is lazy, so skipped output files never trigger a host. The separate indexed preparation queue reuses a warm host across kits, resets to its empty project between files, and recycles the process after 64 preparations. A parent-enforced per-kit deadline handles native hangs; cancellation, crashes and errors discard only the owned host. Successful states are atomic checkpoints, failed kits are retryable, and the cache's preparation-report.json records the latest batch. Sample-only kits and kits handled entirely by the selected direct VST2 route are skipped. NI documents Group file drops in [Managing Sounds, Groups, and your Project](https://docs.native-instruments.com/ni-tech-manuals/maschine-software-manual/en/managing-sounds%2C-groups%2C-and-your-project).
+
+Windows frozen workers preload the installed system C++ runtime before PyInstaller's Qt hook, since the older runtime bundled with Qt caused Maschine initialization to fail. The bundler restricts its build-time PATH to avoid collecting unrelated native runtimes. `pedalboard.midi_utils`, loaded dynamically by the native host, is explicitly imported so frozen MIDI rendering includes it. Pedalboard's license/metadata and project notices accompany release builds.
+
+Local evidence on 2026-10-13: all 5,849 installed groups decoded with zero errors and no changes to previously decoded nonempty paths; 2,892 Audio-module pads gained their stored sample references. Real external renders succeeded for Monark Balatonic (Reaktor 6) and Massive Godown; the two-kit export produced 51 WAVs without errors. Manhattan Kit produced all 16 pads, including its internal Tom synth and Massive instrument, in 13.77 seconds, with zero missing/omitted pads and unchanged source bytes. Repeating with skipping enabled skipped all 16 without rendering. The preparation dialog reached Prepared after loading the matching kit with untouched MIDI routing. The Windows executable rendered Tom and Massive through Maschine, plus Massive directly through VST2: three finite, nonsilent 48 kHz renders in 14.19 seconds. The 83-test suite covers bounds, wrong-kit/version rejection, cache tampering, child reuse, crashes, timeout, cancellation and settings persistence. These checks demonstrate these fixtures and mechanisms, not every NI instrument or listening acceptance. Research, proprietary states and output audio stay in ignored `tmp/instrument-render/`.
+
+A subsequent native Windows GUI export using the freshly prepared state completed with 17 WAVs (all 16 pads and the existing preview), zero errors and zero omitted pads. Silent-pad errors leave the host available for the remaining instruments; crashes and timeouts discard the failed host.
+
+Automatic preparation evidence on 2026-10-13: Balatonic, Manhattan and Godown prepared in one reused host; Apio was correctly omitted as sample-only. A separate six-kit GUI batch (Catacama, Chelas, Dour, Milchweg, BAP, BT) completed with zero errors and resumed with six cache hits. These kits cover all internal synth module types found in the installed index. An empty-cache full Manhattan export prepared automatically, produced 17 valid WAVs in 18.84 seconds, preserved the original source hash, and skipped all 17 files on rerun without rendering. The packaged Windows app prepared Manhattan from scratch in 17.26 seconds, verified a cache-only rerun without host startup, then produced finite non-silent 48 kHz Tom and Massive renders. The index contains 1,057 kits needing the native route; this full set has not been rendered or listening-qualified. The expanded suite has 90 tests, including batch recovery and cancellation. No preparation requires manually loading each kit in the supported setup.
+
+## PySide migration and local distribution review (2026-10-14)
+
+The GUI uses PySide6-Essentials 6.10.3 and Shiboken, retaining the original
+launcher design and support icons. All 96 regression tests pass with the new
+binding. The PySide Windows package also prepared and rendered the internal Tom
+and hosted Massive fixtures, including a cache-only resume without a host.
+
+Windows packages exclude Microsoft runtime DLLs, including NumPy's renamed DLL.
+A small source-built .NET Framework launcher detects required System32 versions
+and offers Microsoft's installer when needed. It verifies Authenticode and the
+Microsoft publisher before opening the installer. Signature validation must
+discard inherited PowerShell 7 module paths so Windows PowerShell resolves its
+own built-in cmdlet. Installed/outdated/missing runtime checks, malformed
+manifests and signed/unsigned installer checks passed; no installation was run.
+
+The former product catalog and vendor software screenshots are removed; preview
+names now come from local Service Center metadata. Packages include an actual
+payload inventory, wheel notices and supplemental license/attribution texts from
+the pinned Qt/PySide source archives. These are not a complete corresponding-source
+delivery. Home-screen icon provenance and remaining native dependency source
+coverage are recorded as publication gates. The release workflow stops before
+version commits or tags while those gates remain open. Work remains local until
+the maintainer tests the candidate and explicitly decides whether to push.

@@ -1,0 +1,20 @@
+[
+  {
+    "component": "PySide6-6.10.3",
+    "url": "https://codeload.github.com/pyside/pyside-setup/tar.gz/refs/tags/v6.10.3",
+    "sha256": "89a6669956cc0b315765e92c4c31015e5b0a8f94e6af834f322fc84da8a49997",
+    "notices": 14
+  },
+  {
+    "component": "QtBase-6.10.3",
+    "url": "https://download.qt.io/archive/qt/6.10/6.10.3/submodules/qtbase-everywhere-src-6.10.3.tar.xz",
+    "sha256": "383dc907816338f0cba72088a524c07458dfc69ce684ca9132fcc4fe91c24b0b",
+    "notices": 154
+  },
+  {
+    "component": "QtSvg-6.10.3",
+    "url": "https://download.qt.io/archive/qt/6.10/6.10.3/submodules/qtsvg-everywhere-src-6.10.3.tar.xz",
+    "sha256": "b3223fe005f6a4c7f21f34e4ee6ce0094737cff9503ba15bbb171ac18794f76d",
+    "notices": 8
+  }
+]

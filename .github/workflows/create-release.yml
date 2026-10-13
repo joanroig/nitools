@@ -19,54 +19,83 @@ concurrency:
   group: release
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   prepare_release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       app_version: ${{ steps.set_version.outputs.APP_VERSION }}
+      source_sha: ${{ steps.set_version.outputs.SOURCE_SHA }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 
-      - name: Install dependencies
-        run: python -m pip install --upgrade pip && python -m pip install .
-
-      - name: Determine Version and Tag
-        id: set_version
+      - name: Require completed publication review
         run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          review = json.loads(Path('packaging/release_review.json').read_text())
+          if review.get('approved') is not True or review.get('pending'):
+              raise SystemExit('Release review is incomplete: ' + '; '.join(review.get('pending', [])))
+          PY
+
+      - name: Install uv
+        run: python -m pip install uv
+
+      - name: Prepare version without publishing a tag
+        id: set_version
+        env:
+          VERSION_BUMP: ${{ inputs.version_bump }}
+          RELEASE_BRANCH: ${{ github.ref_name }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" != "branch" ]; then
+            echo "::error::Run this workflow from a release branch, not a tag."
+            exit 1
+          fi
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
-          if [ "${{ github.event.inputs.version_bump }}" != "none" ]; then
+          if [ "$VERSION_BUMP" != "none" ]; then
             # Bump version in pyproject.toml (the single source of truth)
-            new_version=$(python bump_version.py --file pyproject.toml --bump ${{ github.event.inputs.version_bump }} --variable version)
-            git add pyproject.toml
-            git commit -m "Bump version to $new_version" || echo "No changes to commit"
-            git push origin ${{ github.ref_name }}
+            new_version=$(python bump_version.py --file pyproject.toml --bump "$VERSION_BUMP" --variable version)
+            uv lock
             version=$new_version
           else
             # Use current version from file
             version=$(python -c "from src.utils.version import APP_VERSION; print(APP_VERSION)")
           fi
 
-          # Force-create/update tag
-          git tag -f v$version
-          git push origin -f v$version
+          if git rev-parse --verify "refs/tags/v$version" >/dev/null 2>&1; then
+            echo "::error::Tag v$version already exists; release tags must never be overwritten."
+            exit 1
+          fi
+          if [ "$VERSION_BUMP" != "none" ]; then
+            git add pyproject.toml uv.lock
+            git commit -m "Bump version to $version"
+            git push origin "HEAD:$RELEASE_BRANCH"
+          fi
 
           echo "APP_VERSION=$version" >> $GITHUB_OUTPUT
+          echo "SOURCE_SHA=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
   build:
     runs-on: ${{ matrix.runner_label }}
     needs: prepare_release
     strategy:
+      fail-fast: false
       matrix:
         include:
           - runner_label: windows-latest
@@ -83,14 +112,14 @@ jobs:
             target_arch: arm64
 
     steps:
-      - name: Checkout latest code
-        uses: actions/checkout@v4
+      - name: Checkout the exact release commit
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          ref: ${{ github.ref_name }}
+          ref: ${{ needs.prepare_release.outputs.source_sha }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
           architecture: ${{ matrix.python_arch }}
@@ -100,12 +129,12 @@ jobs:
         shell: bash
 
       - name: Install dependencies
-        run: python -m pip install --upgrade pip && python -m pip install .
+        run: uv sync --locked --python 3.13
 
-      - name: Install PyInstaller (macOS)
-        if: runner.os == 'macOS'
-        run: python -m pip install pyinstaller --upgrade
-        shell: bash
+      - name: Test before bundling
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: uv run --locked python -m unittest discover -s tests -v
 
       - name: Install create-dmg (macOS)
         if: runner.os == 'macOS'
@@ -114,7 +143,7 @@ jobs:
 
       - name: Bundle application (Windows)
         if: runner.os == 'Windows'
-        run: powershell -ExecutionPolicy Bypass -File .\bundle_app_windows.ps1 --ci
+        run: ./bundle_app_windows.ps1 -CI
         shell: pwsh
 
       - name: Verify artifact exists (Windows)
@@ -142,16 +171,49 @@ jobs:
           fi
         shell: bash
 
-      - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v1
+      - name: Stage the tested package
+        uses: actions/upload-artifact@v7
         with:
-          tag_name: v${{ needs.prepare_release.outputs.app_version }}
-          files: |
+          name: release-${{ matrix.runner_label }}
+          if-no-files-found: error
+          compression-level: 0
+          path: |
             ${{ runner.os == 'Windows' && format('./dist/NITools_Windows_v{0}.zip', needs.prepare_release.outputs.app_version) || '' }}
             ${{ runner.os == 'macOS' && format('./dist/NITools_macOS{0}_v{1}.dmg', matrix.artifact_suffix, needs.prepare_release.outputs.app_version) || '' }}
-          name: Release v${{ needs.prepare_release.outputs.app_version }}
-          draft: false
-          prerelease: false
-          generate_release_notes: true
+  draft_release:
+    needs: [prepare_release, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare_release.outputs.source_sha }}
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: release-*
+          path: release
+          merge-multiple: true
+      - name: Require all packages and calculate checksums
+        working-directory: release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.prepare_release.outputs.app_version }}
+        run: |
+          test -s "NITools_Windows_v$VERSION.zip"
+          test -s "NITools_macOS_x86_64_v$VERSION.dmg"
+          test -s "NITools_macOS_arm64_v$VERSION.dmg"
+          sha256sum *.zip *.dmg > SHA256SUMS.txt
+      - name: Create a draft only after every build passes
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ needs.prepare_release.outputs.app_version }}
+          target_commitish: ${{ needs.prepare_release.outputs.source_sha }}
+          name: Release v${{ needs.prepare_release.outputs.app_version }}
+          draft: true
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          body_path: docs/RELEASE_NOTES_2_0.md
+          files: |
+            release/*.zip
+            release/*.dmg
+            release/SHA256SUMS.txt

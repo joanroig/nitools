@@ -2,9 +2,9 @@ import logging
 import platform
 import subprocess
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QPalette
-from PyQt6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDialog,
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QPalette
+from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDialog,
                              QDialogButtonBox, QFormLayout, QGroupBox,
                              QHBoxLayout, QLabel, QLineEdit, QMessageBox,
                              QPushButton, QSpinBox, QVBoxLayout)
@@ -232,7 +232,7 @@ class ConfigurationDialog(QDialog):
         self.accept()
 
     def import_config(self):
-        from PyQt6.QtWidgets import QFileDialog
+        from PySide6.QtWidgets import QFileDialog
         path, _ = QFileDialog.getOpenFileName(self, "Import Configuration", "", "JSON Files (*.json)")
         if not path:
             return
