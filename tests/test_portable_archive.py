@@ -71,6 +71,16 @@ class ArchiveTests(unittest.TestCase):
         ]:
             with self.subTest(kind=kind), self.assertRaises(FormatError):
                 MaschineArchive(header + payload).obj(kind)
+        for value in (0, 1, -1, 255, -255, 256, -256, 2**32, -(2**32)):
+            encoded = portable(value)
+            reader = MaschineArchive(header + encoded)
+            self.assertEqual(reader.integer(), value)
+            self.assertEqual(reader.pos, len(header) + len(encoded))
+            with self.assertRaises(FormatError):
+                MaschineArchive(header + encoded[:-1]).integer()
+        reader = MaschineArchive(header + portable(256))
+        with self.assertRaises(FormatError):
+            reader.integer(1)
         reader = MaschineArchive(header + bytes([9]))
         with self.assertRaises(FormatError):
             reader.integer()

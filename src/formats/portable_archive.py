@@ -40,11 +40,27 @@ class PortableArchive:
         return self.data[start : self.pos]
 
     def integer(self, width=8):
-        size = self.take(1)[0]
+        # Most parameter values use zero or one byte. Decode them directly,
+        # retaining the same width and truncation checks for every field.
+        data, start = self.data, self.pos
+        if start >= len(data):
+            self.fail("Truncated portable integer")
+        size = data[start]
         size = size if size < 128 else size - 256
-        if abs(size) > width:
+        length = abs(size)
+        if length > width:
             self.fail(f"Portable integer exceeds {width} bytes")
-        magnitude = int.from_bytes(self.take(abs(size)), "little")
+        end = start + 1 + length
+        if end > len(data):
+            self.fail("Truncated portable integer")
+        self.pos = end
+        if length == 0:
+            return 0
+        magnitude = (
+            data[start + 1]
+            if length == 1
+            else int.from_bytes(data[start + 1 : end], "little")
+        )
         return -magnitude if size < 0 else magnitude
 
     def text(self):
@@ -72,13 +88,15 @@ class PortableArchive:
 
     def obj(self, name):
         start = self.pos
-        cls = self.register(name)
+        cls = self.classes.get(name)
+        if cls is None:
+            cls = self.register(name)
         if cls[1] is None:
             cls[1], cls[2] = self.integer(1), self.integer(4)
             if cls[1] not in (0, 1):
                 self.fail(f"Invalid tracking flag for {name}")
             self.validate_version(name, cls[2])
-        tracking, version = cls[1:]
+        tracking, version = cls[1], cls[2]
         ident = self.integer(4) if tracking else None
         if ident is not None:
             if not 0 <= ident <= len(self.objects):

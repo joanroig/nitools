@@ -769,6 +769,9 @@ class MaschineArchive(PortableArchive):
         return self.obj("UInt")
 
     def _read_family(self, name, v):
+        parameter = PARAMETER_TYPES.get(name)
+        if parameter is not None:
+            return self._read_typed_parameter(*parameter)
         if name in SIMPLE_FIELDS:
             return [self.obj(f) for f in SIMPLE_FIELDS[name]]
         if name.startswith("Weak"):
@@ -806,40 +809,44 @@ class MaschineArchive(PortableArchive):
             return [self.pointer(item) for _ in range(count)]
         if name.startswith("Shared"):
             return self.pointer(name[6:])
-        for suffix, kind in [
-            ("UInt", "_K"),
-            ("Bool", "_N"),
-            ("Float", "M"),
-            ("String", "S"),
-            ("Int", "H"),
-            ("Double", "N"),
-        ]:
-            if name == "Value" + suffix:
-                self.obj("Parameter")
-                return (
-                    struct.unpack(
-                        "<" + ("f" if kind == "M" else "d"),
-                        self.take(4 if kind == "M" else 8),
-                    )[0]
-                    if kind in ("M", "N")
-                    else self.text()
-                    if kind == "S"
-                    else self.integer(1 if kind == "_N" else 8)
-                )
-            if name == "Numeric" + suffix:
-                return self.obj("Value" + suffix)
-            if name == suffix:
-                value = self.obj(("Value" if kind == "S" else "Numeric") + suffix)
-                self.obj("MaschineParameter")
-                if kind in ("M", "N"):
-                    self.take(8 if kind == "M" else 16)
-                    self.integer(1)
-                    self.take(4 if kind == "M" else 8)
-                elif kind != "S":
-                    for _ in range(4):
-                        self.integer(1 if kind == "_N" else 8)
-                return value
         self.fail(f"Unsupported object schema {name} version {v}")
+
+    def _read_typed_parameter(self, suffix, kind, layer):
+        if layer == "Value":
+            self.obj("Parameter")
+            if kind in ("M", "N"):
+                return struct.unpack(
+                    "<f" if kind == "M" else "<d", self.take(4 if kind == "M" else 8)
+                )[0]
+            return (
+                self.text() if kind == "S" else self.integer(1 if kind == "_N" else 8)
+            )
+        if layer == "Numeric":
+            return self.obj("Value" + suffix)
+        value = self.obj(("Value" if kind == "S" else "Numeric") + suffix)
+        self.obj("MaschineParameter")
+        if kind in ("M", "N"):
+            self.take(8 if kind == "M" else 16)
+            self.integer(1)
+            self.take(4 if kind == "M" else 8)
+        elif kind != "S":
+            for _ in range(4):
+                self.integer(1 if kind == "_N" else 8)
+        return value
+
+
+PARAMETER_TYPES = {
+    layer + suffix: (suffix, kind, layer)
+    for suffix, kind in (
+        ("UInt", "_K"),
+        ("Bool", "_N"),
+        ("Float", "M"),
+        ("String", "S"),
+        ("Int", "H"),
+        ("Double", "N"),
+    )
+    for layer in ("", "Value", "Numeric")
+}
 
 
 READERS = {
