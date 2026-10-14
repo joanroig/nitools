@@ -9,7 +9,7 @@ The latest sequential Maschine kit decoder is source-tested against 5,849 kits a
 - Battery and Maschine indexes use structured binary decoding of stored sample references, cell/slot numbers and sample zones. Missing exact references fail visibly instead of selecting similar filenames.
 - Exports retain sample names and every decoded zone, including Battery cells above 16 and Maschine Audio-module takes.
 - Groups offers experimental instrument rendering (Windows qualified fixtures; Mac adapter unverified): direct installed VST2 presets, or internal/hosted instruments through the installed Maschine 2/3 VST3. Kits prepare automatically during export or through a resumable batch queue, with an assisted single-kit fallback. Raw sample export remains independent of rendering.
-- Large Group scans use up to eight decoder processes; all three audio exporters use bounded parallel conversion. Live progress, cancellation, safe output replacement and incomplete-result reporting are shared.
+- Large Battery and Group scans share a bounded pool of up to eight decoder processes; all three audio exporters use bounded parallel conversion. Live progress, cancellation, safe output replacement and incomplete-result reporting are shared.
 - All three windows have consistent Process/Export tabs, audio settings, expandable options and a compact Activity card with follow, copy, clear and a larger log reader.
 - Release builds use locked dependencies, preserve other local builds and create a draft only after Windows, Intel Mac and Apple Silicon Mac tests/builds pass.
 

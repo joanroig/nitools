@@ -7,29 +7,28 @@ import multiprocessing
 import os
 from pathlib import Path
 
-from formats.maschine import parse_maschine
 
 
 BATCH_SIZE = 16
 MIN_PARALLEL_FILES = 64
 
 
-def _decode_batch(paths):
+def _decode_batch(paths, decoder):
     results = []
     for path in paths:
         try:
-            results.append((path, parse_maschine(Path(path).read_bytes()), None))
+            results.append((path, decoder(Path(path).read_bytes()), None))
         except Exception as error:
             results.append((path, None, str(error)))
     return results
 
 
 @contextmanager
-def decoded_groups(paths, worker=None, max_workers=None):
+def decoded_files(paths, decoder, worker=None, max_workers=None):
     workers = max_workers if max_workers is not None else min(8, os.cpu_count() or 1)
     if len(paths) < MIN_PARALLEL_FILES or workers <= 1:
         # Small selections avoid process startup. None requests normal decoding
-        # in process_mxgrp_file, keeping the single-file API unchanged.
+        # in the builder, keeping the single-file APIs unchanged.
         yield ((path, None, None) for path in paths)
         return
     pool = ProcessPoolExecutor(max_workers=workers, mp_context=multiprocessing.get_context('spawn'))
@@ -42,7 +41,7 @@ def decoded_groups(paths, worker=None, max_workers=None):
     def submit():
         batch = next(batches, None)
         if batch is not None and not cancelled():
-            pending.append(pool.submit(_decode_batch, batch))
+            pending.append(pool.submit(_decode_batch, batch, decoder))
 
     def results():
         while pending and not cancelled():

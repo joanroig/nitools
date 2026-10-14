@@ -217,3 +217,10 @@ The projection deliberately ends after the Group name, after consuming all Sound
 ### Sequential reader performance follow-up
 
 Profiling identified portable integer slicing and repeated parameter-family string checks as hot paths. Direct bounded integer decoding and a parameter-type lookup reduced the full eight-process 5,849-kit comparison from 54.1 s to 29.1 s, with exactly identical comparison results. A 101-kit single-process sample fell from 6.34 s to 3.45 s. All 109 tests passed (one Cocoa-only skip); additional signed/unsigned width and truncation cases passed in the focused archive suite. Maschine retains its existing eight-process pool; Battery indexing is sequential, while audio export uses bounded parallelism. No parallelism changes or heuristic fallbacks were introduced. The old kit scanners are deleted; the active prepared-project routing locator remains isolated and necessary. Private research files and the older packaged build remain local and are not part of this source change.
+
+
+### Shared Battery and Maschine indexing workers
+
+Moved the existing ordered, bounded process pool to `processors/parallel_decode.py`; both builders pass their format decoder to it. Lists of at least 64 files use up to eight spawned workers and bounded batches of 16; small lists remain serial to avoid startup overhead. Only the coordinator writes diagnostics/indexes. File errors remain ordered and cancellation joins owned workers. The old Groups-only module is removed. All 110 tests passed with one Cocoa-only skip, including Battery serial/parallel equality and errors between valid files. No Battery speed claim is made without a real-library benchmark.
+
+The obsolete local `tmp` research/qualification tree was inventoried (64,583 files, 16,905,397,777 bytes, no reparse points). Automatic approval review blocked its deletion; it remains on disk pending owner cleanup. Current build, input and exported content were not targeted. Nothing was pushed or released.

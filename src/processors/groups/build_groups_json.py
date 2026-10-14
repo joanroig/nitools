@@ -6,7 +6,7 @@ from pathlib import Path
 
 from formats.maschine import parse_maschine
 from processors.index_utils import find_sources, report_progress
-from processors.groups.parallel_decode import decoded_groups
+from processors.parallel_decode import decoded_files
 from utils.file_utils import ensure_unique_path, sanitize
 from utils.logger import Logger
 
@@ -114,8 +114,8 @@ class GroupsJsonBuilder:
             errors = []
 
             report_progress(worker_instance, 0, len(mxgrp_files), f"0/{len(mxgrp_files)} groups processed\nStarting decoder…")
-            with decoded_groups(mxgrp_files, worker_instance) as decoded_files:
-                for number, (mxgrp_path, decoded, error) in enumerate(decoded_files, 1):
+            with decoded_files(mxgrp_files, parse_maschine, worker_instance) as decoded_results:
+                for number, (mxgrp_path, decoded, error) in enumerate(decoded_results, 1):
                     if worker_instance and worker_instance.cancel_requested():
                         logger.info("Groups JSON build cancelled by user.")
                         return 1

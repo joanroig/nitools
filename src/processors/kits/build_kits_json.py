@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 from formats.battery import parse_battery
+from processors.parallel_decode import decoded_files
 from processors.index_utils import find_sources, report_progress
 from utils.file_utils import ensure_unique_path, sanitize
 from utils.logger import Logger
@@ -14,9 +15,9 @@ def find_nbkt_files(folder_in: str, worker_instance=None) -> list[str]:
     return find_sources(folder_in, '.nbkt', worker_instance)
 
 
-def process_nbkt_file(input_file: str, output_folder: str, generate_txt: bool = True) -> dict:
+def process_nbkt_file(input_file: str, output_folder: str, generate_txt: bool = True, decoded=None) -> dict:
     source = Path(input_file).resolve()
-    kit = parse_battery(source.read_bytes())
+    kit = parse_battery(source.read_bytes()) if decoded is None else decoded
     library = next((parent for parent in source.parents if (parent / "Samples").is_dir()), None)
     preview = source.parent / ".previews" / (source.name + ".ogg")
     kit.update({
@@ -57,17 +58,20 @@ class KitsJsonBuilder:
             sources = find_nbkt_files(self.input_folder, worker_instance)
             logger.info("Found %s .nbkt files to decode.", len(sources))
             kits, errors = [], []
-            for number, source in enumerate(sources, 1):
-                if worker_instance and worker_instance.cancel_requested():
-                    logger.info("Kits JSON build cancelled by user.")
-                    return 1
-                try:
-                    report_progress(worker_instance, number - 1, len(sources), f"{number - 1}/{len(sources)} kits processed — {Path(source).stem}\n{len(kits)} decoded · {len(errors)} errors")
-                    kits.append(process_nbkt_file(source, self.output_folder, self.generate_txt))
-                except (ValueError, OSError) as exc:
-                    errors.append({"path": source, "error": str(exc)})
-                    logger.error("Could not decode '%s': %s", source, exc)
-                report_progress(worker_instance, number, len(sources), f"{number}/{len(sources)} kits processed\n{len(kits)} decoded · {len(errors)} errors")
+            with decoded_files(sources, parse_battery, worker_instance) as decoded_results:
+                for number, (source, decoded, error) in enumerate(decoded_results, 1):
+                    if worker_instance and worker_instance.cancel_requested():
+                        logger.info("Kits JSON build cancelled by user.")
+                        return 1
+                    try:
+                        report_progress(worker_instance, number - 1, len(sources), f"{number - 1}/{len(sources)} kits processed — {Path(source).stem}\n{len(kits)} decoded · {len(errors)} errors")
+                        if error is not None:
+                            raise ValueError(error)
+                        kits.append(process_nbkt_file(source, self.output_folder, self.generate_txt, decoded=decoded))
+                    except (ValueError, OSError) as exc:
+                        errors.append({"path": source, "error": str(exc)})
+                        logger.error("Could not decode '%s': %s", source, exc)
+                    report_progress(worker_instance, number, len(sources), f"{number}/{len(sources)} kits processed\n{len(kits)} decoded · {len(errors)} errors")
             if worker_instance and worker_instance.cancel_requested():
                 logger.info("Kits JSON build cancelled by user.")
                 return 1
