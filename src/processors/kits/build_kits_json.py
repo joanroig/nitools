@@ -1,10 +1,8 @@
 import argparse
-import json
 from pathlib import Path
 
 from formats.battery import parse_battery
-from processors.parallel_decode import decoded_files
-from processors.index_utils import find_sources, report_progress
+from processors.index_utils import find_sources, build_sample_index
 from utils.file_utils import ensure_unique_path, sanitize
 from utils.logger import Logger
 
@@ -57,34 +55,10 @@ class KitsJsonBuilder:
             logger.info("Scanning for Battery kits in %s", self.input_folder)
             sources = find_nbkt_files(self.input_folder, worker_instance)
             logger.info("Found %s .nbkt files to decode.", len(sources))
-            kits, errors = [], []
-            with decoded_files(sources, parse_battery, worker_instance) as decoded_results:
-                for number, (source, decoded, error) in enumerate(decoded_results, 1):
-                    if worker_instance and worker_instance.cancel_requested():
-                        logger.info("Kits JSON build cancelled by user.")
-                        return 1
-                    try:
-                        report_progress(worker_instance, number - 1, len(sources), f"{number - 1}/{len(sources)} kits processed — {Path(source).stem}\n{len(kits)} decoded · {len(errors)} errors")
-                        if error is not None:
-                            raise ValueError(error)
-                        kits.append(process_nbkt_file(source, self.output_folder, self.generate_txt, decoded=decoded))
-                    except (ValueError, OSError) as exc:
-                        errors.append({"path": source, "error": str(exc)})
-                        logger.error("Could not decode '%s': %s", source, exc)
-                    report_progress(worker_instance, number, len(sources), f"{number}/{len(sources)} kits processed\n{len(kits)} decoded · {len(errors)} errors")
-            if worker_instance and worker_instance.cancel_requested():
-                logger.info("Kits JSON build cancelled by user.")
-                return 1
-            destination = output / self.combined_json_name
-            destination.write_text(json.dumps(kits, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-            report = {"parser": "structured-v1", "files": len(sources),
-                      "decoded": len(kits), "errors": errors}
-            destination.with_suffix(".report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-            if not sources or errors:
-                logger.error("Kit index incomplete: %s decoded, %s errors. See %s", len(kits), len(errors), destination.with_suffix(".report.json"))
-                return 1
-            logger.info("Decoded %s kits to %s", len(kits), destination)
-            return 0
+            return build_sample_index(
+                sources, Path(self.output_folder) / self.combined_json_name,
+                parse_battery, process_nbkt_file, generate_txt=self.generate_txt,
+                worker=worker_instance, logger=logger, label="kits")
         except Exception as exc:
             logger.error("Error building kits JSON: %s", exc)
             return 1

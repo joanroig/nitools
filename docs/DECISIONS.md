@@ -224,3 +224,8 @@ Profiling identified portable integer slicing and repeated parameter-family stri
 Moved the existing ordered, bounded process pool to `processors/parallel_decode.py`; both builders pass their format decoder to it. Lists of at least 64 files use up to eight spawned workers and bounded batches of 16; small lists remain serial to avoid startup overhead. Only the coordinator writes diagnostics/indexes. File errors remain ordered and cancellation joins owned workers. The old Groups-only module is removed. All 110 tests passed with one Cocoa-only skip, including Battery serial/parallel equality and errors between valid files. No Battery speed claim is made without a real-library benchmark.
 
 The obsolete local `tmp` research/qualification tree was inventoried (64,583 files, 16,905,397,777 bytes, no reparse points). Automatic approval review blocked its deletion; it remains on disk pending owner cleanup. Current build, input and exported content were not targeted. Nothing was pushed or released.
+
+
+### Shared sample-index coordination
+
+Battery and Maschine now also share the coordinator in `index_utils.build_sample_index`: progress, cancellation, per-file errors, optional skipped records, index/report serialization and completion status. The builders retain format-specific discovery and metadata/diagnostic processing. Their export implementations already share `SampleCollectionProcessor` and audio conversion helpers; the distinct binary formats and preview-discovery workflow remain separate. This removes the duplicated coordinator loops without introducing a configurable builder framework.

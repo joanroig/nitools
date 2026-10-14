@@ -5,8 +5,7 @@ import sys
 from pathlib import Path
 
 from formats.maschine import parse_maschine
-from processors.index_utils import find_sources, report_progress
-from processors.parallel_decode import decoded_files
+from processors.index_utils import find_sources, build_sample_index
 from utils.file_utils import ensure_unique_path, sanitize
 from utils.logger import Logger
 
@@ -110,44 +109,10 @@ class GroupsJsonBuilder:
             mxgrp_files = find_mxgrp_files(self.input_folder, worker_instance)
             logger.info(f"Found {len(mxgrp_files)} .mxgrp files to process.")
 
-            all_groups = []
-            errors = []
-
-            report_progress(worker_instance, 0, len(mxgrp_files), f"0/{len(mxgrp_files)} groups processed\nStarting decoder…")
-            with decoded_files(mxgrp_files, parse_maschine, worker_instance) as decoded_results:
-                for number, (mxgrp_path, decoded, error) in enumerate(decoded_results, 1):
-                    if worker_instance and worker_instance.cancel_requested():
-                        logger.info("Groups JSON build cancelled by user.")
-                        return 1
-
-                    try:
-                        report_progress(worker_instance, number - 1, len(mxgrp_files), f"{number - 1}/{len(mxgrp_files)} groups processed — {Path(mxgrp_path).stem}\n{len(all_groups)} decoded · {len(errors)} errors")
-                        if error is not None:
-                            raise ValueError(error)
-                        group_data = process_mxgrp_file(mxgrp_path, self.output_folder, generate_txt=self.generate_txt, decoded=decoded)
-                        if group_data:
-                            all_groups.append(group_data)
-                    except Exception as e:
-                        logger.error(f"Error processing '{mxgrp_path}': {e}")
-                        errors.append({"path": mxgrp_path, "error": str(e)})
-                    report_progress(worker_instance, number, len(mxgrp_files), f"{number}/{len(mxgrp_files)} groups processed\n{len(all_groups)} decoded · {len(errors)} errors")
-
-            if worker_instance and worker_instance.cancel_requested():
-                logger.info("Groups JSON build cancelled by user.")
-                return 1
-            combined_json_path = os.path.join(self.output_folder, self.combined_json_name)
-            with open(combined_json_path, "w", encoding="utf-8") as f:
-                json.dump(all_groups, f, indent=2, ensure_ascii=False)
-
-            report_path = Path(combined_json_path).with_suffix(".report.json")
-            report_path.write_text(json.dumps({
-                "parser": "structured-v1", "files": len(mxgrp_files),
-                "decoded": len(all_groups), "errors": errors,
-            }, indent=2, ensure_ascii=False), encoding="utf-8")
-            log = logger.error if errors or not mxgrp_files else logger.info
-            log("Group index %s: %s decoded, %s errors. Saved to %s; details: %s",
-                "incomplete" if errors or not mxgrp_files else "complete", len(all_groups), len(errors), combined_json_path, report_path)
-            return 1 if errors or not mxgrp_files else 0
+            return build_sample_index(
+                mxgrp_files, Path(self.output_folder) / self.combined_json_name,
+                parse_maschine, process_mxgrp_file, generate_txt=self.generate_txt,
+                worker=worker_instance, logger=logger, label="groups")
         except Exception as e:
             logger.error(f"Error building groups JSON: {e}")
             return 1
