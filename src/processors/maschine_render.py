@@ -4,6 +4,9 @@ import hashlib
 import json
 import multiprocessing
 import os
+import platform
+import plistlib
+import sys
 from pathlib import Path
 import tempfile
 import threading
@@ -16,17 +19,46 @@ from formats.maschine_project import route_kit_preset
 
 
 def plugin_path(options):
-    path = Path(options.maschine_plugin) if options.maschine_plugin else Path(
-        os.environ.get('CommonProgramFiles', r'C:\Program Files\Common Files')) / 'VST3/Maschine 3.vst3'
-    if not path.is_file():
-        raise ValueError('Maschine 3 VST3 was not found. Select the installed Maschine 3.vst3 file.')
-    return path.resolve()
+    if options.maschine_plugin:
+        candidates = [Path(options.maschine_plugin)]
+    elif sys.platform == 'darwin':
+        candidates = [Path.home() / 'Library/Audio/Plug-Ins/VST3/Maschine 3.vst3',
+                      Path('/Library/Audio/Plug-Ins/VST3/Maschine 3.vst3')]
+    else:
+        candidates = [Path(os.environ.get('CommonProgramFiles', r'C:\Program Files\Common Files'))
+                      / 'VST3/Maschine 3.vst3']
+    for path in candidates:
+        if path.suffix.lower() == '.vst3' and (path.is_dir() if sys.platform == 'darwin' else path.is_file()):
+            plugin_binary(path)  # Reject malformed bundles before opening a host.
+            return path.resolve()
+    raise ValueError('Maschine 3 VST3 was not found. Select its installed .vst3 bundle on macOS or file on Windows.')
+
+
+def plugin_binary(path):
+    path = Path(path)
+    if not path.is_dir():
+        return path
+    try:
+        metadata = plistlib.loads((path / 'Contents/Info.plist').read_bytes())
+        name = metadata['CFBundleExecutable']
+        if not isinstance(name, str) or name in {'', '.', '..'} or '/' in name or '\\' in name:
+            raise ValueError('Invalid executable name')
+        binary = path / 'Contents/MacOS' / name
+        if not binary.is_file():
+            raise ValueError('Bundle executable is missing')
+        return binary
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise ValueError(f'Invalid Maschine VST3 bundle: {path}: {exc}') from exc
 
 
 def cache_paths(source, options):
     source = Path(source)
     plugin = plugin_path(options)
-    fingerprint = f'{plugin}|{plugin.stat().st_size}|{plugin.stat().st_mtime_ns}'.encode()
+    binary = plugin_binary(plugin)
+    identity = f'{plugin}|{binary.stat().st_size}|{binary.stat().st_mtime_ns}'
+    if sys.platform == 'darwin':
+        identity = f'darwin|{platform.machine()}|{identity}'
+    fingerprint = identity.encode()
     key = hashlib.sha256(source.read_bytes() + fingerprint).hexdigest()
     folder = cache_folder(options)
     return folder / (key + '.vstpreset'), folder / (key + '.json')
@@ -78,7 +110,7 @@ def prepare_job(connection, source, options):
     """Own GUI process: closing Maschine's editor captures its loaded kit."""
     try:
         from pedalboard import load_plugin
-        from utils.plugin_host import prepare_plugin_host
+        from hosts.runtime import prepare_plugin_host
         prepare_plugin_host()
         plugin = load_plugin(str(plugin_path(options)), initialization_timeout=30)
         connection.send(('status', 'Maschine is open. Load the selected kit into A1, then close its editor.'))
@@ -97,7 +129,7 @@ def _native_job(connection, plugin_file, state, source=None, options=None):
         import pedalboard.midi_utils  # Imported dynamically by the native host; retain in frozen builds.
         import numpy as np
         import soundfile as sf
-        from utils.plugin_host import prepare_plugin_host
+        from hosts.runtime import prepare_plugin_host
         prepare_plugin_host()
         plugin = load_plugin(plugin_file, initialization_timeout=30)
         if state is None:

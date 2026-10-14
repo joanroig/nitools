@@ -27,7 +27,7 @@ To start the Launcher:
   - If the app does not open: - Go to `System Settings` > `Privacy & Security` and press `Open Anyway`.
   - If it still does not open, double-click the `fix.command` script located in the `.dmg` volume. Then, go to `System Settings` > `Privacy & Security` and press `Open Anyway` again. Finally, open the `NITools.app` from your Applications folder and, if prompted, go to `System Settings` > `Privacy & Security` and press `Open Anyway` one last time.
 
-- **From Source (Python):** Run `uv sync --locked` from the repository, then `./run.ps1` on Windows or `uv run --locked python src/launcher.py` on macOS.
+- **From Source (Python):** Run `uv sync --locked` from the repository, then `./run.ps1` on Windows or `bash run.sh` on macOS (Python 3.13).
 
 Once launched, you will see the main window:
 
@@ -92,16 +92,18 @@ _Screenshot of the Groups Exporter "Export Groups" tab._
 
 Pad filtering and filling empty slots are disabled for new configurations. Previously saved preferences still apply. Filling blanks only affects identified empty slots; it does not replace missing sample references, instrument pads, or slots whose contents cannot be classified beyond having no sample reference.
 
-### Optional instrument rendering (Windows 64-bit)
+### Optional instrument rendering (64-bit)
+
+**macOS status:** Automatic preparation and Maschine rendering are experimental and have not been verified on a real Mac. Direct VST2 DLL rendering is Windows-only and disabled on Mac. See [Mac qualification](MACOS_PORT.md) before relying on unattended batches.
 
 Open **Export Groups → Pad and instrument options**. Both rendering options are off by default. They need the original `.mxgrp` files, matching installed instruments and their licensed content. Rendering rereads each original kit, so existing structured indexes can use the option; rebuild indexes to recover Audio-module samples when exporting with rendering disabled.
 
 - **Render external VST2 instruments:** Load each supported instrument's saved chunk into its installed 64-bit VST2 DLL and render one note. Massive and Reaktor/Monark have been tested. Standard VST2 folders are searched automatically; an additional folder takes precedence. A VST3 installation alone does not satisfy this option. This route renders the instrument's main output without the surrounding Maschine effect chain.
-- **Render internal instruments with Maschine 3:** Use the installed Maschine 3 VST3 to render built-in synths such as Drum Synth and Bass Synth. NITools automatically loads and caches kits when needed. With external rendering also enabled, supported VST2 pads take the direct route and other instrument pads use Maschine. With only Maschine rendering enabled, all identified instrument pads use the prepared kit, including its hosted VSTs and effects.
+- **Render instruments through Maschine 3:** Use the installed Maschine 3 VST3 to render built-in synths such as Drum Synth and Bass Synth. NITools automatically loads and caches kits when needed. With external rendering also enabled, supported VST2 pads take the direct route and other instrument pads use Maschine. With only Maschine rendering enabled, all identified instrument pads use the prepared kit, including its hosted VSTs and effects.
 
 For a large library:
 
-1. Build/select the Groups index, enable **Render internal instruments with Maschine 3**, and leave **Automatically prepare uncached kits during export** checked. Export normally: preparation runs only when an instrument pad actually needs rendering. Skipped output files do not start a preparation host.
+1. Build/select the Groups index, enable **Render instruments through Maschine 3**, and leave **Automatically prepare uncached kits during export** checked. Export normally: preparation runs only when an instrument pad actually needs rendering. Skipped output files do not start a preparation host.
 2. To prepare ahead of time, click **Prepare indexed kits… → Prepare indexed kits**. This queues the indexed kits needing Maschine under your selected rendering options. Sample-only kits are omitted, and valid cached kits are skipped.
 3. NITools opens its own Maschine editor and sends each exact `.mxgrp` file to it automatically. Keep this editor untouched. The queue checks the Group and all 16 Sound names, enables Drumkit MIDI routing and saves each verified state immediately. No library search, typing or dragging is needed.
 4. Watch live progress and errors in the queue. **Cancel** stops the owned host while retaining completed kits. Run the queue again to resume or retry failures. A stalled or failed kit is reported; the next kit gets a fresh host. Increase **Kit loading timeout** for slow instruments (default 120 seconds, plus up to 30 seconds for a cold host). A `preparation-report.json` in the cache folder records the latest queue run.

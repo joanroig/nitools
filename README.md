@@ -77,9 +77,13 @@ The initial idea was to export Maschine groups to use them in the Roland SP 404 
 
 ### ⚠️ Compatibility Note
 
-NITools has been **tested only on Windows**.  
-While pre-built executables are provided for macOS, some features may require **adaptations** (e.g., accessing the registry and other OS-specific behaviors).  
-Mac users should expect additional setup or adjustments. Feel free to open a PR!
+The current candidate is qualified locally on Windows only. The macOS port includes
+automatic Maschine preparation and rendering through the installed Maschine VST3,
+but that adapter and the packaged app still require real-Mac validation. Direct
+VST2 DLL rendering remains Windows-only. See [Mac setup and qualification](docs/MACOS_PORT.md).
+
+Run from source on Mac with `bash run.sh` (Python 3.13). See the
+[project structure and development commands](docs/PROJECT_STRUCTURE.md).
 
 ## Modules
 
@@ -105,7 +109,7 @@ Mac users should expect additional setup or adjustments. Feel free to open a PR!
 - Shares audio conversion, matrix, filter, and preview options with the Groups Exporter.
 - Reports missing exact paths and conversion failures as incomplete exports; no fuzzy replacements.
 
-Rebuild old JSON indexes and use a fresh output folder when upgrading from the earlier heuristic parsers. The exporters reject indexes without the current structured-decoder marker. Both exporters preserve every sample zone, including Maschine Audio-module takes. Sample export copies source audio without recreating its native processing. The Groups Exporter also offers experimental instrument rendering. Maschine kits can be prepared automatically during export or in a resumable batch queue; no per-kit manual loading is required for the supported Maschine 3 setup. See the [User Guide](docs/GUIDE.md#optional-instrument-rendering-windows-64-bit) for setup and limitations.
+Rebuild old JSON indexes and use a fresh output folder when upgrading from the earlier heuristic parsers. The exporters reject indexes without the current structured-decoder marker. Both exporters preserve every sample zone, including Maschine Audio-module takes. Sample export copies source audio without recreating its native processing. The Groups Exporter also offers experimental instrument rendering. Maschine kits can be prepared automatically during export or in a resumable batch queue; no per-kit manual loading is required for the supported Maschine 3 setup. See the [User Guide](docs/GUIDE.md#optional-instrument-rendering-64-bit) for setup and limitations.
 
 See the [2.0 release notes](docs/RELEASE_NOTES_2_0.md) for upgrade instructions and the [verification record](docs/RELEASE_2_0.md) for tested scope and remaining compatibility checks.
 

@@ -8,7 +8,7 @@ import tempfile
 import time
 
 from models.render_options import RenderOptions
-from processors.vst2_host import render_job
+from hosts.vst2 import render_job
 
 
 class InstrumentRenderer:
@@ -16,8 +16,10 @@ class InstrumentRenderer:
         self.options = options
         self.native_session = None
         self.native_error = None
-        if sys.platform != 'win32' or sys.maxsize <= 2**32:
-            raise ValueError('Instrument rendering currently requires 64-bit Windows')
+        if sys.platform not in {'win32', 'darwin'} or sys.maxsize <= 2**32:
+            raise ValueError('Instrument rendering requires 64-bit Windows or macOS')
+        if sys.platform != 'win32' and options.enabled:
+            raise ValueError('Direct VST2 rendering requires Windows; disable it and use Maschine rendering on macOS')
         program_files = Path(os.environ.get('ProgramFiles', r'C:\Program Files'))
         roots = ([Path(options.plugin_folder)] if options.plugin_folder else []) + [
             program_files / 'Vstplugins', program_files / 'Steinberg/VstPlugins',

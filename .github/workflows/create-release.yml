@@ -70,7 +70,7 @@ jobs:
 
           if [ "$VERSION_BUMP" != "none" ]; then
             # Bump version in pyproject.toml (the single source of truth)
-            new_version=$(python bump_version.py --file pyproject.toml --bump "$VERSION_BUMP" --variable version)
+            new_version=$(python scripts/bump_version.py --file pyproject.toml --bump "$VERSION_BUMP" --variable version)
             uv lock
             version=$new_version
           else
@@ -129,7 +129,7 @@ jobs:
         shell: bash
 
       - name: Install dependencies
-        run: uv sync --locked --python 3.13
+        run: uv sync --locked --group build --python 3.13
 
       - name: Test before bundling
         env:

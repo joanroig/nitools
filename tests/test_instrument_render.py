@@ -157,7 +157,13 @@ class RenderLifecycleTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.plugin = self.root/'Maschine 3.vst3'
-        self.plugin.write_bytes(b'plugin')
+        self.plugin_binary = self.plugin
+        if sys.platform == 'darwin':
+            import plistlib
+            self.plugin_binary = self.plugin / 'Contents/MacOS/Maschine'
+            self.plugin_binary.parent.mkdir(parents=True)
+            (self.plugin / 'Contents/Info.plist').write_bytes(plistlib.dumps({'CFBundleExecutable': 'Maschine'}))
+        self.plugin_binary.write_bytes(b'plugin')
         self.source = self.root/'Kit.mxgrp'
         self.source.write_bytes(b'original source')
         self.options = RenderOptions(native_enabled=True, maschine_plugin=str(self.plugin), cache_folder=str(self.root/'cache'))
@@ -179,7 +185,7 @@ class RenderLifecycleTests(unittest.TestCase):
             self.source.write_bytes(b'changed source')
             self.assertNotEqual(cache_paths(self.source, self.options)[0], path)
             path2 = cache_paths(self.source, self.options)[0]
-            self.plugin.write_bytes(b'updated plugin')
+            self.plugin_binary.write_bytes(b'updated plugin')
             self.assertNotEqual(cache_paths(self.source, self.options)[0], path2)
             with self.assertRaisesRegex(ValueError, 'not prepared'):
                 load_prepared(self.source, self.options)

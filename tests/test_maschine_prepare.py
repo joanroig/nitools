@@ -36,7 +36,7 @@ def fake_prepare_job(connection, plugin, options):
         connection.close()
 
 
-@unittest.skipUnless(sys.platform == 'win32', 'Windows preparation host')
+@unittest.skipUnless(sys.platform in {'win32', 'darwin'}, 'Supported preparation host')
 class PreparationTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
@@ -45,7 +45,14 @@ class PreparationTests(unittest.TestCase):
         self.cache = self.root / 'cache'
         self.cache.mkdir()
         self.plugin = self.root / 'test.vst3'
-        self.plugin.write_bytes(b'test')
+        if sys.platform == 'darwin':
+            import plistlib
+            binary = self.plugin / 'Contents/MacOS/Maschine'
+            binary.parent.mkdir(parents=True)
+            binary.write_bytes(b'test')
+            (self.plugin / 'Contents/Info.plist').write_bytes(plistlib.dumps({'CFBundleExecutable': 'Maschine'}))
+        else:
+            self.plugin.write_bytes(b'test')
         self.options = RenderOptions(maschine_plugin=str(self.plugin), cache_folder=str(self.cache))
         self.session = PreparationSession(self.options)
         self.addCleanup(self.session.close)
@@ -109,12 +116,13 @@ class PreparationTests(unittest.TestCase):
             if data == b'raw':
                 return {'samples': [{}]}
             return {'samples': [{'instrument': {'render_support': 'vst2' if data == b'vst' else 'requires_maschine'}}]}
-        self.options.enabled = True
+        self.options.enabled = sys.platform == 'win32'
         with patch('processors.maschine_prepare.parse_maschine', side_effect=decode):
             self.assertEqual(prepare_index(index, self.options), 1)
         report = json.loads((self.cache / 'preparation-report.json').read_text())
-        self.assertEqual((report['prepared'], report['unnecessary'], report['errors']), (1, 2, 2))
-        self.assertEqual(len(report['results']), 3)
+        expected = (1, 2, 2) if sys.platform == 'win32' else (2, 1, 2)
+        self.assertEqual((report['prepared'], report['unnecessary'], report['errors']), expected)
+        self.assertEqual(len(report['results']), 3 if sys.platform == 'win32' else 4)
         self.assertEqual(paths[0].read_bytes(), b'native')
 
     def test_batch_cancel_keeps_report_and_cache(self):

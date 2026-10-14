@@ -1,7 +1,4 @@
 {
-  // Use IntelliSense to learn about possible attributes.
-  // Hover to view descriptions of existing attributes.
-  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
   "configurations": [
     {
@@ -71,9 +68,7 @@
         "./out/all_groups.json",
         "./out/groups/",
         "--trim_silence",
-        "--normalize",
-        "--filter_pads",
-        "--fill_blanks"
+        "--normalize"
       ],
       "justMyCode": true,
       "env": {
@@ -87,7 +82,9 @@
       "program": "src/processors/previews/build_previews_json.py",
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
-      "args": ["./out/"],
+      "args": [
+        "./out/"
+      ],
       "justMyCode": true,
       "env": {
         "PYTHONPATH": "${workspaceFolder}/src"
@@ -115,23 +112,13 @@
       "name": "Python: Generate PDF",
       "type": "debugpy",
       "request": "launch",
-      "program": "docs/makepdf.py",
+      "program": "packaging/make_guide.py",
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
-      "args": ["docs/GUIDE.md", "nitools-guide.pdf"],
-      "justMyCode": true,
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}/src"
-      }
-    },
-    {
-      "name": "Python: Generate UPIDS",
-      "type": "debugpy",
-      "request": "launch",
-      "program": "docs/upids/export.py",
-      "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}",
-      "args": [],
+      "args": [
+        "docs/GUIDE.md",
+        "tmp/nitools-guide.pdf"
+      ],
       "justMyCode": true,
       "env": {
         "PYTHONPATH": "${workspaceFolder}/src"
@@ -144,7 +131,11 @@
       "program": "src/processors/kits/build_kits_json.py",
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
-      "args": ["./in/battery/", "./out/kits/", "--generate_txt=true"],
+      "args": [
+        "./in/battery/",
+        "./out/kits/",
+        "--generate_txt=true"
+      ],
       "justMyCode": true,
       "env": {
         "PYTHONPATH": "${workspaceFolder}/src"

@@ -172,3 +172,14 @@ delivery. Home-screen icon provenance and remaining native dependency source
 coverage are recorded as publication gates. The release workflow stops before
 version commits or tags while those gates remain open. Work remains local until
 the maintainer tests the candidate and explicitly decides whether to push.
+
+
+## 2026-10-14: source structure and experimental Mac host
+
+Removed the 15 obsolete Battery parser prototypes and dependency-rewrite script. Native host adapters now live in `src/hosts`, maintenance tools in `scripts`, and guide generation in `packaging`. Runtime and build dependencies are separate; all references and debug commands were updated. Inputs, exports and research are preserved. Automatic approval review rejected deletion of 16 ignored obsolete build outputs, so those outputs remain.
+
+Mac preparation uses a private Cocoa file-URL drop into the isolated hosted Maschine editor and validates the captured group/sound state. Plugin bundle executable and architecture enter cache identity; Windows cache identity is unchanged. Mac routes hosted instruments through Maschine and disables the direct Windows VST2 DLL route, including imported Windows preferences. Python 3.13 has Pedalboard wheels for both Mac architectures. Tests and optional package-only CI cover Windows and both Mac architectures; no workflow was dispatched. Mac runtime/preparation is explicitly unqualified until tested with licensed Maschine on real hardware. See MACOS_PORT.md for the check command.
+
+Local suite: 102 tests run, 101 passed and the real-Cocoa check skipped on Windows. Publication remains disabled and no push or release is authorized.
+
+The rebuilt Windows executable reused the existing preparation cache without host creation, then rendered Manhattan internal Tom and hosted Massive to finite non-silent 48 kHz WAVs (33.15 s total). The refreshed 343-entry ZIP passed integrity checks, dependency inventory retained 24 providers/221 payload files, and the updated 12-page guide was visually reviewed.

@@ -20,6 +20,7 @@ The principal dependencies include:
 | libsndfile and codec dependencies | LGPL-2.1 and included third-party terms | https://github.com/libsndfile/libsndfile |
 | python-soxr / libsoxr | BSD-3-Clause / LGPL-2.1-or-later | https://github.com/dofuuz/python-soxr |
 | Pydantic / pydantic-core | MIT | https://github.com/pydantic/pydantic |
+| PyObjC Cocoa bridge (macOS) | MIT | https://github.com/ronaldoussoren/pyobjc |
 | PyQtDarkTheme fork | MIT | https://github.com/5yutan5/PyQtDarkTheme |
 | PyInstaller runtime | GPL-2.0-or-later with bootloader exception | https://pyinstaller.org/en/stable/license.html |
 

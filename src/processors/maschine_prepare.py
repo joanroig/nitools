@@ -19,7 +19,7 @@ def _prepare_job(connection, plugin_file, options):
     try:
         from pedalboard import load_plugin
         from processors.maschine_loader import load_kit
-        from utils.plugin_host import prepare_plugin_host
+        from hosts.runtime import prepare_plugin_host
         prepare_plugin_host()
         plugin = load_plugin(plugin_file, initialization_timeout=30)
         blank = plugin.preset_data
@@ -40,8 +40,10 @@ def _prepare_job(connection, plugin_file, options):
 
 class PreparationSession:
     def __init__(self, options):
-        if sys.platform != 'win32' or sys.maxsize <= 2**32:
-            raise ValueError('Automatic Maschine preparation requires 64-bit Windows')
+        if sys.platform not in {'win32', 'darwin'} or sys.maxsize <= 2**32:
+            raise ValueError('Automatic Maschine preparation requires 64-bit Windows or macOS')
+        if sys.platform != 'win32' and options.enabled:
+            raise ValueError('Direct VST2 rendering requires Windows; disable it and render all instruments through Maschine on macOS')
         self.options = options
         self.plugin = str(plugin_path(options))
         self.process = self.connection = None

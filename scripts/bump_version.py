@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Bump the version in place and print the new one. Used by create-release.yml.
 
-    python bump_version.py --file pyproject.toml --bump patch --variable version
+    python scripts/bump_version.py --file pyproject.toml --bump patch --variable version
 """
 
 import argparse
@@ -44,7 +44,7 @@ def main() -> None:
 
     path = Path(args.file)
     if not path.is_absolute():
-        path = Path(__file__).parent / path
+        path = Path(__file__).resolve().parents[1] / path
 
     try:
         # newline="" keeps the original line endings intact on the round-trip

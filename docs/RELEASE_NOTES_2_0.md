@@ -27,9 +27,11 @@ Saved audio, matrix and filter preferences remain active. Review those settings 
 ## Compatibility and limits
 
 - Sample and preview export target Windows and macOS. The release workflow is configured to test/build Windows, Intel macOS and Apple Silicon macOS, but the current candidate has only been built and tested locally on Windows. macOS packaging and library workflows remain unverified.
-- **Instrument rendering is experimental and Windows-only.** Automatic preparation has been tested with Maschine 3.7.1 and its default hosted-editor layout. The matching installed plug-ins and licensed content are required. No Native Instruments software, samples or presets are included.
+- **Instrument rendering is experimental.** Direct VST2 DLL hosting remains Windows-only. The new macOS Maschine preparation/rendering adapter is implemented but unverified on real Mac hardware; see [Mac qualification](MACOS_PORT.md). Automatic preparation has been tested with Maschine 3.7.1 and its default hosted-editor layout. The matching installed plug-ins and licensed content are required. No Native Instruments software, samples or presets are included.
 - Instrument export renders one note per identified instrument pad. It is not a multisampled instrument or a pattern bounce. Sample pads continue to export their source audio. Direct VST2 rendering does not reproduce surrounding Maschine effects.
 - Unknown file layouts, missing content, loading timeouts and failed renders are reported as incomplete work. Support is demonstrated for the tested files, not every historical or future NI format or plug-in.
 - Windows and macOS packages are not signed/notarized. Independent clean-machine and listening checks remain outside the completed local qualification.
 
 See the included PDF or [User Guide](GUIDE.md) for setup, automatic preparation, command-line options and troubleshooting.
+
+Source maintenance: removed obsolete prototype decoders and the dependency-rewrite helper; moved native hosts to `src/hosts`, maintenance commands to `scripts`, and guide generation to `packaging`. Build dependencies are separate from runtime dependencies. User libraries, exports and research data are preserved.

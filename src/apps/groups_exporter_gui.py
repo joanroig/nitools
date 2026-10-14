@@ -168,10 +168,14 @@ class GroupsExporterGUI(ExporterWorkflow, QtWidgets.QDialog):
         self.render_instruments = QtWidgets.QCheckBox('Render external VST2 instruments')
         self.render_instruments.setToolTip('Render one note using the instrument state saved in the original kit. Requires Windows and the matching installed VST2 plug-in and content.')
         render_layout.addRow(self.render_instruments)
-        self.render_maschine = QtWidgets.QCheckBox('Render internal instruments with Maschine 3')
+        self.render_maschine = QtWidgets.QCheckBox('Render instruments through Maschine 3')
         self.render_maschine.setToolTip('Requires the installed Maschine 3 VST3. Kits can be prepared automatically. Uses each pad’s saved pitch and the kit’s effects.')
         render_layout.addRow(self.render_maschine)
-        render_help = QtWidgets.QLabel('Windows 64-bit. External VST2 rendering loads saved presets directly. Maschine rendering also supports internal synths and automatically caches kits for later exports. Installed instruments and content are required.')
+        self.render_instruments.setEnabled(sys.platform == 'win32')
+        render_help = QtWidgets.QLabel(
+            'macOS port: experimental and not yet verified with Maschine on a real Mac. Use Maschine rendering for internal and hosted instruments. Automatic preparation requires the default Ideas layout.'
+            if sys.platform == 'darwin' else
+            'Windows 64-bit. External VST2 rendering loads saved presets directly. Maschine rendering also supports internal synths and automatically caches kits for later exports. Installed instruments and content are required.')
         render_help.setWordWrap(True)
         render_layout.addRow(render_help)
         self.render_settings = QtWidgets.QWidget()
@@ -415,7 +419,12 @@ class GroupsExporterGUI(ExporterWorkflow, QtWidgets.QDialog):
             control.setEnabled(external)
 
     def choose_maschine_plugin(self):
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Choose Maschine 3 VST3', self.maschine_plugin.text(), 'VST3 (*.vst3)')
+        if sys.platform == 'darwin':
+            path = QtWidgets.QFileDialog.getExistingDirectory(self, 'Choose the Maschine 3.vst3 bundle',
+                self.maschine_plugin.text() or '/Library/Audio/Plug-Ins/VST3',
+                QtWidgets.QFileDialog.Option.DontUseNativeDialog)
+        else:
+            path, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Choose Maschine 3 VST3', self.maschine_plugin.text(), 'VST3 (*.vst3)')
         if path:
             self.maschine_plugin.setText(path)
 
@@ -442,6 +451,9 @@ class GroupsExporterGUI(ExporterWorkflow, QtWidgets.QDialog):
 
     def load_config_to_ui(self):
         c = self.config.groups_exporter
+        if sys.platform != 'win32':
+            # Imported Windows preferences must not silently select the DLL host.
+            c.instrument_render.enabled = False
         render = c.instrument_render.model_copy()
         self.auto_prepare.setChecked(render.auto_prepare)
         self.prepare_timeout.setValue(int(render.prepare_timeout))
@@ -450,7 +462,7 @@ class GroupsExporterGUI(ExporterWorkflow, QtWidgets.QDialog):
         self.render_hold.setValue(render.hold)
         self.render_tail.setValue(render.tail)
         self.vst2_folder.setText(render.plugin_folder)
-        self.render_instruments.setChecked(render.enabled)
+        self.render_instruments.setChecked(render.enabled and sys.platform == 'win32')
         self.maschine_plugin.setText(render.maschine_plugin)
         self.render_maschine.setChecked(render.native_enabled)
         self.input_folder.setText(self.normalize_path(c.input_folder))

@@ -56,7 +56,8 @@ class ExporterGuiTests(unittest.TestCase):
              patch.object(groups_exporter_gui.config_utils, 'save_config'):
             gui = groups_exporter_gui.GroupsExporterGUI()
             try:
-                self.assertTrue(gui.render_instruments.isChecked())
+                self.assertEqual(gui.render_instruments.isChecked(), sys.platform == 'win32')
+                self.assertEqual(config.groups_exporter.instrument_render.enabled, sys.platform == 'win32')
                 self.assertTrue(gui.render_maschine.isChecked())
                 self.assertFalse(gui.auto_prepare.isChecked())
                 self.assertEqual(gui.prepare_timeout.value(), 210)

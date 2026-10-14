@@ -16,7 +16,7 @@ $env:PYTHONPATH = (Join-Path $repoDir "src")
 $BaseDistPath = Join-Path $repoDir "dist"
 
 # Fetch version number from src/utils/version.py
-$VERSION = & uv run --locked --project $repoDir python -c "from utils.version import APP_VERSION; print(APP_VERSION)" |
+$VERSION = & uv run --locked --group build --project $repoDir python -c "from utils.version import APP_VERSION; print(APP_VERSION)" |
     ForEach-Object { $_.Trim() }
 if ($LASTEXITCODE -ne 0 -or $VERSION -notmatch '^\d+\.\d+\.\d+$') {
     throw "Could not determine the application version."
@@ -30,7 +30,7 @@ New-Item -ItemType Directory -Path $PlatformDistPath, $BuildPath -Force | Out-Nu
 # Resolve the locked interpreter before restricting the DLL search path.
 # Unrelated native runtimes on PATH can otherwise supply an incompatible UCRT
 # to PyInstaller, preventing installed audio plug-ins from initializing.
-$BuildPython = (& uv run --locked --project $repoDir python -c "import sys; print(sys.executable)").Trim()
+$BuildPython = (& uv run --locked --group build --project $repoDir python -c "import sys; print(sys.executable)").Trim()
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $BuildPython)) {
     throw "Could not resolve the build interpreter."
 }
@@ -61,7 +61,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Windows launcher compilation failed.' }
 if ($LASTEXITCODE -ne 0) { throw 'Release inventory or license collection failed.' }
 Copy-Item -LiteralPath (Join-Path $repoDir "LICENSE"), (Join-Path $repoDir "THIRD_PARTY_NOTICES.md") -Destination $PlatformDistPath -Force
 $GuidePath = Join-Path $PlatformDistPath "nitools-guide.pdf"
-& uv run --locked --project $repoDir python (Join-Path $repoDir "docs\makepdf.py") (Join-Path $repoDir "docs\GUIDE.md") $GuidePath
+& uv run --locked --group build --project $repoDir python (Join-Path $repoDir "packaging\make_guide.py") (Join-Path $repoDir "docs\GUIDE.md") $GuidePath
 if ($LASTEXITCODE -ne 0) {
     throw "PDF guide generation failed."
 }

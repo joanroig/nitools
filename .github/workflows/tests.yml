@@ -1,6 +1,14 @@
 name: Tests
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Build test packages without publishing a release
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -11,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [windows-latest, macos-26-intel, macos-latest]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -23,3 +31,20 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: uv run --locked python -m unittest discover -s tests -v
+      - name: Build Windows test package
+        if: inputs.package && runner.os == 'Windows'
+        shell: pwsh
+        run: ./bundle_app_windows.ps1 -CI
+      - name: Build Mac test package
+        if: inputs.package && runner.os == 'macOS'
+        run: |
+          brew install create-dmg
+          bash bundle_app_macos.sh "$(uname -m)" --ci
+      - uses: actions/upload-artifact@v6
+        if: inputs.package
+        with:
+          name: NITools-${{ matrix.os }}
+          path: |
+            dist/*.zip
+            dist/*.dmg
+          if-no-files-found: error

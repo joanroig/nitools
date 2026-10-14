@@ -5,6 +5,6 @@
     "Home-screen music-service icon provenance and redistribution terms",
     "Complete corresponding source and notices for native dependencies, including Windows libsndfile codecs and Pedalboard submodules",
     "Clean Windows prerequisite installation and cancellation checks",
-    "Packaged Intel and Apple Silicon macOS verification"
+    "Packaged Intel and Apple Silicon macOS verification, including automatic Maschine preparation and rendering"
   ]
 }

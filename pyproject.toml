@@ -12,20 +12,20 @@ dependencies = [
   "appdirs>=1.4.4",
   "colorlog>=6.12.0",
   "concurrent-log-handler>=0.9.29",
-  "markdown-pdf>=1.13.2",
   "numpy>=2.5.1",
   "pydantic>=2.13.4",
-  "pyinstaller>=6.21.0",
   "soxr>=1.1.0",
   "PySide6-Essentials>=6.10.3,<6.11",
   "pyqtdarktheme-fork>=2.3.6",
   "soundfile>=0.14.0",
-  "pedalboard>=0.9.26,<0.10; sys_platform == 'win32'",
+  "pedalboard>=0.9.26,<0.10; sys_platform == 'win32' or sys_platform == 'darwin'",
+  "pyobjc-framework-Cocoa>=12.2.2,<13; sys_platform == 'darwin'",
 ]
 
-[project.optional-dependencies]
-dev = [
-  "pytest>=9.1.1",
+[dependency-groups]
+build = [
+  "pyinstaller>=6.21.0",
+  "markdown-pdf>=1.13.2",
 ]
 
 [tool.setuptools]

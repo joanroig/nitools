@@ -52,7 +52,7 @@ class TimeInfo(C.Structure):
 
 def render(dll_path, state, expected_id, output, *, note=60, velocity=100,
            hold=1.0, tail=2.0, sample_rate=48000):
-    from utils.plugin_host import prepare_plugin_host
+    from hosts.runtime import prepare_plugin_host
     prepare_plugin_host()
     block = 512
     timing = TimeInfo(sampleRate=sample_rate, tempo=120, timeSigNumerator=4,

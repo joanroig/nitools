@@ -10,7 +10,7 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
     throw "uv was not found in PATH. Install uv from https://docs.astral.sh/uv/."
 }
 
-$repoDir = $PSScriptRoot
+$repoDir = Split-Path -Parent $PSScriptRoot
 $pyproject = Join-Path $repoDir "pyproject.toml"
 if (-not (Test-Path $pyproject)) {
     throw "pyproject.toml not found in $repoDir"
@@ -29,7 +29,7 @@ if (-not (Test-Path $venvPython)) {
 
 Push-Location $repoDir
 try {
-    & uv sync --python $venvPython --extra dev
+    & uv sync --locked --python $venvPython --group build
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to sync project dependencies with uv."
     }
