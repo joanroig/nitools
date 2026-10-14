@@ -7,7 +7,7 @@ are rejected. No proprietary preset or template is bundled.
 
 import struct
 
-from formats.maschine import _channel_names, _encoded, _ids, _text, _uint
+from formats.maschine_project_frames import _channel_names, _encoded, _ids, _text, _uint
 from formats.ni_container import FormatError, read_container
 
 

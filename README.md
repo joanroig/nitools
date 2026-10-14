@@ -109,6 +109,8 @@ Run from source on Mac with `bash run.sh` (Python 3.13). See the
 - Shares audio conversion, matrix, filter, and preview options with the Groups Exporter.
 - Reports missing exact paths and conversion failures as incomplete exports; no fuzzy replacements.
 
+Maschine kit decoding now follows native archive field order and tracked object references, with no byte-pattern fallback. See [decoder architecture, validation and limits](docs/MASCHINE_FORMAT.md). Rebuild the Groups index to use the new reader and recover legacy plug-in metadata.
+
 Rebuild old JSON indexes and use a fresh output folder when upgrading from the earlier heuristic parsers. The exporters reject indexes without the current structured-decoder marker. Both exporters preserve every sample zone, including Maschine Audio-module takes. Sample export copies source audio without recreating its native processing. The Groups Exporter also offers experimental instrument rendering. Maschine kits can be prepared automatically during export or in a resumable batch queue; no per-kit manual loading is required for the validated Maschine 2/3 setups. See the [User Guide](docs/GUIDE.md#optional-instrument-rendering-64-bit) for setup and limitations.
 
 See the [2.0 release notes](docs/RELEASE_NOTES_2_0.md) for upgrade instructions and the [verification record](docs/RELEASE_2_0.md) for tested scope and remaining compatibility checks.

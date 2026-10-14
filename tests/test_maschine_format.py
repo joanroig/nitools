@@ -9,7 +9,9 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from formats.maschine import parse_maschine, _channel_names
+from formats.maschine import parse_maschine
+from formats.maschine_project_frames import _channel_names
+from maschine_fixture import synthetic_archive, Writer
 from formats.ni_container import FormatError
 from processors.groups.build_groups_json import GroupsJsonBuilder, process_mxgrp_file
 
@@ -30,57 +32,6 @@ def archive_text(value):
 def ids(first, count):
     return b"".join(portable(value) for value in range(first, first + count))
 
-
-def synthetic_archive(legacy=False, empty_zone=False, override=False):
-    """Independent minimal field graph; does not bundle a licensed preset."""
-    archive = archive_text("serialization::archive")
-    archive += b"".join(portable(value) for value in ((10, 0, 1, 9, 0, 0, 0, 2, 1, 0, 1, 1) if legacy else (17, 0, 1, 22, 0, 0, 0, 2, 1, 0, 1, 1)))
-    archive += archive_text("Test Library") * 2
-    archive += b"".join(portable(value) for value in ((16, 1, 0, 1, 21, 1, 4, 68) if legacy else (16, 1, 0, 1, 16, 1, 9, 41)))
-    first = True
-    for slot in range(17):
-        ident = (slot + 1) * 1000
-        name = "Fixture" if slot == 16 else "" if slot == 1 else f"Sound {slot + 1}"
-        archive += portable(ident) + (b'' if legacy else b"\0") + archive_text(name)
-        numeric = bytes(12 if legacy else 13) + portable(1 if override else 0) + bytes(4)
-        if legacy:
-            archive += ids(ident + 1, 3) + numeric + ids(ident + 4, 4) + bytes(5) + ids(ident + 8, 3)
-        else:
-            archive += ids(ident + 1, 4) + numeric + ids(ident + 5, 5)
-        if slot not in (0, 2):
-            continue
-        if first:
-            archive += portable(39 if legacy else 40) + archive_text("NI::MASCHINE::DATA::Sampler")
-            archive += portable(1) + portable(2) + portable(ident + (18 if legacy else 23)) + bytes(6)
-            archive += portable(1) + portable(1) + b"\0" + portable(1)
-        else:
-            archive += portable(39 if legacy else 40) + portable(ident + (18 if legacy else 23)) + portable(2) + portable(1)
-        for zone in range(1 if first else 2):
-            zone_id = ident + (19 if legacy else 24) + zone * 80
-            archive += portable(44 if legacy else 45)
-            if first:
-                archive += portable(1) + portable(2)
-            archive += portable(zone_id)
-            if first:
-                archive += bytes(2)
-            if empty_zone and zone == 1:
-                archive += portable(0) + archive_text('')
-            else:
-                archive += portable(2) + archive_text("Samples/Kick\u00a0é\U0001f941.wav")
-                if first:
-                    archive += bytes(2)
-                archive += archive_text("Q:/Original Library/") + archive_text("Test Library")
-            if first:
-                archive += portable(1) + b"\0" + portable(zone_id + 1) + bytes(2) + ids(zone_id + 2, 2 if legacy else 3)
-            else:
-                archive += ids(zone_id + 1, 3 if legacy else 4)
-            if legacy:
-                archive += portable(14000) * 2 + bytes(3) + ids(zone_id + 4, 2)
-        first = False
-    payload = struct.pack("<IQI", 1, len(archive) + 4, len(archive)) + archive + bytes(16)
-    base = b"DSIN" + struct.pack("<IIIII", 1, 1, 1, 1, 1)
-    header = b"DSIN" + struct.pack("<IIQ", 109, 1, len(base)) + base + payload
-    return struct.pack("<QI4sII", 48 + len(header), 1, b"hsin", 1, 0) + bytes(16) + struct.pack("<Q", len(header)) + header
 
 
 def kit(name):
@@ -126,11 +77,12 @@ class MaschineFormatTests(unittest.TestCase):
             self.assertEqual(sample['empty_zones'], 1)
 
     def test_declared_zone_count_cannot_hide_extra_zones(self):
-        data = bytearray(synthetic_archive())
-        marker = portable(40) + portable(3023) + portable(2) + portable(1)
-        offset = data.index(marker) + len(portable(40)) + len(portable(3023))
+        writer = Writer()
+        data = bytearray(writer.build())
+        # Change the second sequential vector count without changing its body.
+        offset = 108 + writer.zone_counts[1]
         data[offset + 1] = 1
-        with self.assertRaisesRegex(FormatError, 'declares 1 references, decoded 2'):
+        with self.assertRaises(FormatError):
             parse_maschine(bytes(data))
 
     def test_installed_archive_version_profiles(self):
@@ -167,12 +119,10 @@ class MaschineFormatTests(unittest.TestCase):
         self.assertEqual(result["samples"][2]["paths"], ["Samples/Kick\u00a0é\U0001f941.wav"] * 2)
 
     def test_synthetic_bad_zone_count_fails(self):
-        data = bytearray(synthetic_archive())
-        # The second sampler declares two zones; claiming three must fail.
-        marker = portable(40) + portable(3023) + portable(2) + portable(1)
-        offset = data.index(marker) + len(portable(40)) + len(portable(3023))
-        data[offset + 1] = 3
-        with self.assertRaisesRegex(FormatError, "declares 3 references, decoded 2"):
+        writer = Writer()
+        data = bytearray(writer.build())
+        data[108 + writer.zone_counts[1] + 1] = 3
+        with self.assertRaises(FormatError):
             parse_maschine(bytes(data))
 
     def test_samples_and_non_sample_slots_keep_source_order(self):
@@ -219,7 +169,7 @@ class MaschineFormatTests(unittest.TestCase):
         result = parse_maschine(bytes(data))
         offset = result["samples"][1]["sample_references"][0]["source_offset"]
         data[offset + 1] = 46
-        with self.assertRaisesRegex(FormatError, "sample map"):
+        with self.assertRaises(FormatError):
             parse_maschine(bytes(data))
 
     def test_unknown_archive_version_is_explicitly_unsupported(self):

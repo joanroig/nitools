@@ -2,6 +2,8 @@
 
 Release target as of 2026-10-14: **2.0.0**. The incompatible kit/group index change requires a major version. Local Windows qualification is recorded below; publication requires the GitHub release builds to pass. See [release notes](RELEASE_NOTES_2_0.md) for the user-facing upgrade instructions and compatibility limits.
 
+The latest sequential Maschine kit decoder is source-tested against 5,849 kits and the 109-test suite. The previously qualified Windows package predates this change and needs rebuilding/requalification before distribution. See [decoder scope and evidence](MASCHINE_FORMAT.md).
+
 ## Changes for 2.0
 
 - Battery and Maschine indexes use structured binary decoding of stored sample references, cell/slot numbers and sample zones. Missing exact references fail visibly instead of selecting similar filenames.

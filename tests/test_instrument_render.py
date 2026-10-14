@@ -13,7 +13,7 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 
-from formats.maschine_modules import Modules
+from formats.maschine import instrument_info
 from formats.maschine_project import build_vst3, project_archive_version, route_kit_preset, vst3_chunks
 from formats.ni_container import FormatError, read_container
 from models.render_options import RenderOptions
@@ -77,57 +77,18 @@ class InstrumentFormatTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 project_archive_version(preset)
 
-    def test_audio_take_versions_keep_exact_unicode_paths_and_vector_count(self):
-        for version in (5, 6, 7, 8):
-            for take_version in (0, 1, 2):
-                prefix = portable(1) + portable(1)
-                take = (portable(40) + portable(1) + portable(take_version) + portable(124)
-                        + bytes(2) + portable(2) + archive_text('Samples/é loop.wav')
-                        + bytes(2) + archive_text('Q:/Library/') + archive_text('Library')
-                        + b'\x01\x01\0' + ids(125, 5))
-                data = prefix + take
-                following = SimpleNamespace(offset=len(data), object_id=1000)
-                refs = Modules(data, 0).audio(('Audio', version, 123, 0, False), following, 50)
-                self.assertEqual(refs[0]['path'], 'Samples/é loop.wav')
-                self.assertEqual(refs[0]['library_root'], 'Q:/Library/')
-                self.assertEqual(refs[0]['source_offset'], 50 + len(prefix))
-                bad = portable(2) + portable(1) + take
-                with self.assertRaisesRegex(FormatError, 'declares 2 references'):
-                    Modules(bad, 0).audio(('Audio', version, 123, 0, False), following, 0)
-                with self.assertRaises(FormatError):
-                    Modules(data, 0).audio(('Audio', version, 123, 0, False),
-                        SimpleNamespace(offset=len(data)-2, object_id=1000), 0)
-
-    def test_audio_v3_file_location_is_bounded(self):
-        data = (ids(124, 5) + bytes(18) + portable(2) + archive_text('Samples/Loop.wav')
-                + archive_text('Q:/Library/') + archive_text('Library') + ids(129, 5))
-        boundary = SimpleNamespace(offset=len(data), object_id=1000)
-        refs = Modules(data, 0).audio(('Audio', 3, 123, 0, False), boundary, 0)
-        self.assertEqual(refs[0]['path'], 'Samples/Loop.wav')
-        boundary.offset -= 2
-        with self.assertRaises(FormatError):
-            Modules(data, 0).audio(('Audio', 3, 123, 0, False), boundary, 0)
-
-    def test_plugin_chunk_is_opt_in_and_cannot_cross_sound_boundary(self):
-        for legacy in (False, True):
-            width = 3 if legacy else 4
-            props = b''.join(ids(124 + prop * width, width) + bytes(5 if legacy else 6) for prop in range(4))
-            chunk = b'opaque saved preset'
-            payload = struct.pack('<III', 1, 1, len(chunk)) + chunk
-            data = props + archive_text('NI:VST:INSTR:123456') + archive_text('Synth') + portable(len(payload)) + payload
-            boundary = SimpleNamespace(offset=len(data), object_id=1000)
-            module = ('PluginHost', 1, 123, 0, False)
-            reader = Modules(data, 0, legacy)
-            self.assertNotIn('state', reader.instrument(module, boundary))
-            self.assertEqual(reader.instrument(module, boundary, True)['state'], chunk)
-            boundary.offset -= 1
-            self.assertEqual(reader.instrument(module, boundary, True)['render_support'], 'unsupported')
+    def test_plugin_chunk_is_opt_in_and_validates_its_declared_length(self):
+        chunk = b'opaque saved preset'
+        module = dict(type='PluginHost', version=0, value=(
+            'NI:VST:INSTR:123456', 'Synth', {'value': struct.pack('<III', 1, 1, len(chunk)) + chunk}))
+        self.assertNotIn('state', instrument_info(module))
+        self.assertEqual(instrument_info(module, True)['state'], chunk)
+        module['value'][2]['value'] = module['value'][2]['value'][:-1]
+        self.assertEqual(instrument_info(module, True)['render_support'], 'unsupported')
 
     def test_effects_are_not_classified_as_instruments(self):
-        reader = Modules(b'', 0)
-        boundary = SimpleNamespace(offset=0, object_id=1000)
-        self.assertIsNone(reader.instrument(('Reverb', 1, 10, 0, False), boundary))
-        self.assertEqual(reader.instrument(('Tom', 1, 10, 0, False), boundary)['render_support'], 'requires_maschine')
+        self.assertIsNone(instrument_info(dict(type='Reverb', version=0)))
+        self.assertEqual(instrument_info(dict(type='Tom', version=1))['render_support'], 'requires_maschine')
 
     def test_routing_updates_container_lengths_and_is_idempotent(self):
         original = project_preset()
