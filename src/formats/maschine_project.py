@@ -64,7 +64,7 @@ def _serialize(obj, source, changed_header, payload):
             + struct.pack('<Q', len(head)) + head + children)
 
 
-def route_kit_preset(preset, expected_names, expected_group):
+def _project(preset):
     class_id, chunks = vst3_chunks(preset)
     components = [data for tag, data in chunks if tag == b'Comp']
     if len(components) != 1:
@@ -85,6 +85,17 @@ def route_kit_preset(preset, expected_names, expected_group):
     archive_version, _ = _uint(archive, at)
     if signature != 'serialization::archive' or archive_version not in (19, 20):
         raise FormatError('Unsupported Maschine project archive; validated versions are 19 (Maschine 2.18.4) and 20 (Maschine 3.7.1)')
+    return class_id, chunks, source, root, h, archive, archive_version
+
+
+def project_archive_version(preset):
+    """Choose a host layout from validated state, never from a renamed file."""
+    return _project(preset)[-1]
+
+
+def route_kit_preset(preset, expected_names, expected_group):
+    class_id, chunks, source, root, h, archive, _ = _project(preset)
+    length = len(archive)
     names = _channel_names(archive, 0, expected_count=18)
     if len(expected_names) != 16 or [n.text for n in names[:16]] != list(expected_names) or names[16].text != expected_group:
         raise FormatError('Loaded kit does not match the selected kit and its 16 sound names. Load it into the only Group, A1.')

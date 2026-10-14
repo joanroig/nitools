@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import logging
 import multiprocessing
 import os
 import platform
@@ -163,9 +164,19 @@ def _native_job(connection, plugin_file, state, source=None, options=None):
         connection.close()
 
 
-def stop_process(process):
+def stop_process(process, connection=None):
     if process is not None and process.pid is not None:
+        # Let an idle host destroy the plug-in and close its browser database.
+        # Cancellation/errors pass no connection and still stop immediately.
+        if process.is_alive() and connection is not None:
+            try:
+                connection.send(None)
+            except (BrokenPipeError, EOFError, OSError):
+                pass
+            process.join(5)
         if process.is_alive():
+            if connection is not None:
+                logging.getLogger('MaschineHost').warning('Maschine did not close cleanly within 5s; stopping its isolated host')
             process.terminate()
         process.join(3)
         if process.is_alive():
@@ -211,7 +222,7 @@ class NativeSession:
                 started = time.monotonic()
                 while not self.connection.poll(0.1):
                     if worker and worker.cancel_requested():
-                        self.close()
+                        self.close(graceful=False)
                         return False
                     if not self.process.is_alive():
                         raise RuntimeError(f'Maschine host exited with code {self.process.exitcode}')
@@ -221,7 +232,7 @@ class NativeSession:
                 error = self.connection.recv()
             except Exception:
                 self.failed = True
-                self.close()
+                self.close(graceful=False)
                 raise
             # A pad may be silent or have missing content while the next pad
             # remains usable. Only transport/process failures discard the host.
@@ -229,8 +240,8 @@ class NativeSession:
                 raise RuntimeError(error)
             return True
 
-    def close(self):
-        stop_process(self.process)
+    def close(self, graceful=True):
+        stop_process(self.process, self.connection if graceful else None)
         self.process = None
         if self.connection is not None:
             self.connection.close()

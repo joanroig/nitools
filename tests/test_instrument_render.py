@@ -14,7 +14,7 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 
 from formats.maschine_modules import Modules
-from formats.maschine_project import build_vst3, route_kit_preset, vst3_chunks
+from formats.maschine_project import build_vst3, project_archive_version, route_kit_preset, vst3_chunks
 from formats.ni_container import FormatError, read_container
 from models.render_options import RenderOptions
 from processors.instrument_render import export_instrument
@@ -44,13 +44,18 @@ def project_preset(mode=(0, 0, 0, 1, 0, 0), version=20, sounds=16):
 
 
 def fake_native_job(connection, plugin, state, source=None, options=None):
+    last_output = None
     if state == b'crash':
         os._exit(7)
     if state == b'slow':
         time.sleep(20)
     try:
         while True:
-            pad, path, options = connection.recv()
+            request = connection.recv()
+            if request is None:
+                return
+            pad, path, options = request
+            last_output = Path(path)
             if state == b'pad_error' and pad == 12:
                 connection.send('silent pad')
                 continue
@@ -59,10 +64,19 @@ def fake_native_job(connection, plugin, state, source=None, options=None):
     except EOFError:
         pass
     finally:
+        if last_output is not None:
+            last_output.with_suffix('.closed').write_text('clean')
         connection.close()
 
 
 class InstrumentFormatTests(unittest.TestCase):
+    def test_host_profile_comes_from_validated_project_archive(self):
+        for version in (19, 20):
+            self.assertEqual(project_archive_version(project_preset(version=version)), version)
+        for preset in (b'invalid', project_preset(version=18), project_preset(version=21)):
+            with self.assertRaises(ValueError):
+                project_archive_version(preset)
+
     def test_audio_take_versions_keep_exact_unicode_paths_and_vector_count(self):
         for version in (5, 6, 7, 8):
             for take_version in (0, 1, 2):
@@ -210,6 +224,7 @@ class RenderLifecycleTests(unittest.TestCase):
         self.assertEqual((self.root/'one.wav').read_text(), '12')
         self.assertEqual((self.root/'two.wav').read_text(), '16')
         session.close()
+        self.assertEqual((self.root/'two.closed').read_text(), 'clean')
         self.assertIsNone(session.process)
 
     def test_native_crash_and_timeout_release_child(self):

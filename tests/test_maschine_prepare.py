@@ -19,7 +19,10 @@ from processors.maschine_render import NativeSession
 def fake_prepare_job(connection, plugin, options):
     try:
         while True:
-            source = Path(connection.recv())
+            request = connection.recv()
+            if request is None:
+                return
+            source = Path(request)
             if source.stem == 'crash':
                 os._exit(7)
             if source.stem == 'slow':
@@ -33,6 +36,7 @@ def fake_prepare_job(connection, plugin, options):
     except EOFError:
         pass
     finally:
+        (Path(options.cache_folder) / 'host-closed').write_text('clean')
         connection.close()
 
 
@@ -72,6 +76,7 @@ class PreparationTests(unittest.TestCase):
         self.assertEqual(self.session.prepare(self.root / 'second.mxgrp'), 'prepared')
         self.assertEqual(self.session.process.pid, pid)
         self.session.close()
+        self.assertEqual((self.cache / 'host-closed').read_text(), 'clean')
         self.assertEqual(self.session.prepare(self.root / 'first.mxgrp'), 'cached')
         self.assertIsNone(self.session.process)
 

@@ -76,7 +76,7 @@ class PreparationSession:
             limit = self.options.prepare_timeout + (30 if cold else 0)
             while not self.connection.poll(0.1):
                 if worker and worker.cancel_requested():
-                    self.close()
+                    self.close(graceful=False)
                     return 'cancelled'
                 if not self.process.is_alive():
                     raise RuntimeError(f'Maschine preparation host exited with code {self.process.exitcode}')
@@ -90,11 +90,11 @@ class PreparationSession:
             self.completed += 1
             return 'prepared'
         except Exception:
-            self.close()
+            self.close(graceful=False)
             raise
 
-    def close(self):
-        stop_process(self.process)
+    def close(self, graceful=True):
+        stop_process(self.process, self.connection if graceful else None)
         self.process = None
         self.completed = 0
         if self.connection is not None:

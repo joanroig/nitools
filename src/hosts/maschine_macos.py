@@ -11,18 +11,29 @@ import threading
 import time
 
 from formats.maschine import parse_maschine
-from formats.maschine_project import route_kit_preset
+from formats.maschine_project import project_archive_version, route_kit_preset
 
 
-def editor_view(windows):
-    """Fail closed unless one visible, full-size Qt editor exists in the host."""
+def editor_view(windows, archive_version=20):
+    """Find one owned editor; v19 uses native Cocoa, v20 uses Qt."""
+    if archive_version not in (19, 20):
+        raise ValueError('Unsupported Maschine editor archive version')
     candidates = []
 
     def visit(view):
         if view.isHiddenOrHasHiddenAncestor():
             return
         bounds = view.bounds()
-        if 'QNSView' in str(view.className()) and bounds.size.width >= 1000 and bounds.size.height >= 600:
+        if archive_version == 19:
+            # Maschine 2 predates Qt. Inspect the native drag contract instead
+            # of guessing its private Objective-C class name.
+            types = {str(value) for value in (view.registeredDraggedTypes() or ())}
+            accepts = bool(types & {'public.file-url', 'NSFilenamesPboardType'})
+        elif archive_version == 20:
+            accepts = 'QNSView' in str(view.className())
+        else:
+            raise ValueError('Unsupported Maschine editor archive version')
+        if accepts and bounds.size.width >= 1000 and bounds.size.height >= 600:
             candidates.append(view)
         for child in view.subviews():
             visit(child)
@@ -69,8 +80,8 @@ def drag_info_class():
     return NIToolsDraggingInfo
 
 
-def drop_kit(view, source):
-    from AppKit import NSPasteboard, NSMakePoint
+def drop_kit(view, source, archive_version=20):
+    from AppKit import NSPasteboard, NSMakePoint, NSFilenamesPboardType
     from Foundation import NSURL
 
     pasteboard = NSPasteboard.pasteboardWithUniqueName()
@@ -79,9 +90,14 @@ def drop_kit(view, source):
     try:
         if not pasteboard.writeObjects_([NSURL.fileURLWithPath_(str(Path(source).resolve()))]):
             raise ValueError('Could not put the kit URL on the private drag pasteboard')
+        if archive_version == 19:
+            pasteboard.addTypes_owner_([NSFilenamesPboardType], None)
+            if not pasteboard.setPropertyList_forType_([str(Path(source).resolve())], NSFilenamesPboardType):
+                raise ValueError('Could not publish the legacy file list for Maschine 2')
         bounds = view.bounds()
         # AppKit coordinates are logical points, independent of Retina scale.
-        y = 155 if view.isFlipped() else bounds.size.height - 155
+        drop_y = 180 if archive_version == 19 else 155
+        y = drop_y if view.isFlipped() else bounds.size.height - drop_y
         info.location = view.convertPoint_toView_(NSMakePoint(410, y), None)
         info.pasteboard = pasteboard
         info.destination = view.window()
@@ -105,6 +121,7 @@ def load_kit(plugin, source, timeout):
     if not NSThread.isMainThread():
         raise RuntimeError('Maschine preparation must run on its isolated host main thread')
     decoded = parse_maschine(Path(source).read_bytes())
+    archive_version = project_archive_version(plugin.preset_data)
     expected = [sample['name'] for sample in decoded['samples']]
     closed = threading.Event()
     started = time.monotonic()
@@ -126,9 +143,9 @@ def load_kit(plugin, source, timeout):
             app = NSApplication.sharedApplication()
             if app.modalWindow() is not None:
                 raise ValueError('Maschine opened a dialog while loading; resolve missing plug-ins or content')
-            view = editor_view(app.windows())
+            view = editor_view(app.windows(), archive_version)
             if dropped is None:
-                drop_kit(view, source)
+                drop_kit(view, source, archive_version)
                 dropped = now
                 return
             try:

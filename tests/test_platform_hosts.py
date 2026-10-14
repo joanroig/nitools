@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
-from hosts.maschine_macos import editor_view
+from hosts.maschine_macos import drop_kit, editor_view
 from models.render_options import RenderOptions
 from processors.instrument_render import InstrumentRenderer
 from processors.maschine_render import cache_paths, plugin_path
@@ -92,6 +92,15 @@ class PlatformHostTests(unittest.TestCase):
         window.contentView.return_value = view
         window.attachedSheet.return_value = None
         self.assertIs(editor_view([window]), view)
+        view.className.return_value = 'NativeEditor'
+        view.registeredDraggedTypes.return_value = ['NSFilenamesPboardType']
+        self.assertIs(editor_view([window], 19), view)
+        view.registeredDraggedTypes.return_value = []
+        with self.assertRaises(ValueError):
+            editor_view([window], 19)
+        with self.assertRaises(ValueError):
+            editor_view([], 21)
+        view.className.return_value = 'NI_QNSView'
         with self.assertRaisesRegex(ValueError, 'one Maschine editor'):
             editor_view([window, window])
         view.isHiddenOrHasHiddenAncestor.return_value = True
@@ -101,6 +110,35 @@ class PlatformHostTests(unittest.TestCase):
         window.attachedSheet.return_value = object()
         with self.assertRaisesRegex(ValueError, 'dialog'):
             editor_view([window])
+
+    def test_drop_profiles_publish_private_file_types_and_correct_logical_point(self):
+        for version, y in ((19, 180), (20, 155)):
+            for flipped in (True, False):
+                with self.subTest(version=version, flipped=flipped):
+                    board, view, info = Mock(), Mock(), Mock()
+                    view.isFlipped.return_value = flipped
+                    view.bounds.return_value = SimpleNamespace(size=SimpleNamespace(height=700))
+                    view.convertPoint_toView_.side_effect = lambda point, _: point
+                    view.draggingEntered_.return_value = 1
+                    appkit = SimpleNamespace(NSPasteboard=Mock(), NSMakePoint=lambda x, y: (x, y),
+                                             NSFilenamesPboardType='NSFilenamesPboardType')
+                    appkit.NSPasteboard.pasteboardWithUniqueName.return_value = board
+                    foundation = SimpleNamespace(NSURL=Mock())
+                    drag_class = Mock()
+                    drag_class.alloc.return_value.init.return_value = info
+                    with patch.dict(sys.modules, {'AppKit': appkit, 'Foundation': foundation}), \
+                            patch('hosts.maschine_macos.drag_info_class', return_value=drag_class):
+                        drop_kit(view, 'Kit.mxgrp', version)
+                    self.assertEqual(info.location, (410, y if flipped else 700-y))
+                    board.writeObjects_.assert_called_once()
+                    if version == 19:
+                        board.addTypes_owner_.assert_called_once_with(['NSFilenamesPboardType'], None)
+                        board.setPropertyList_forType_.assert_called_once_with(
+                            [str(Path('Kit.mxgrp').resolve())], 'NSFilenamesPboardType')
+                    else:
+                        board.setPropertyList_forType_.assert_not_called()
+                    view.concludeDragOperation_.assert_called_once_with(info)
+                    board.releaseGlobally.assert_called_once()
 
     @unittest.skipUnless(sys.platform == 'darwin', 'Requires the actual Cocoa bridge')
     def test_native_drag_info_signatures_and_private_pasteboard(self):

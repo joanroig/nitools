@@ -173,7 +173,7 @@ class GroupsExporterGUI(ExporterWorkflow, QtWidgets.QDialog):
         render_layout.addRow(self.render_maschine)
         self.render_instruments.setEnabled(sys.platform == 'win32')
         render_help = QtWidgets.QLabel(
-            'macOS port: experimental and not yet verified with Maschine on a real Mac. Use Maschine rendering for internal and hosted instruments. Maschine 2 requires assisted preparation on Mac; automatic preparation targets Maschine 3’s default Ideas layout.'
+            'macOS port: experimental and not yet verified with Maschine on a real Mac. Use Maschine rendering for internal and hosted instruments. Automatic preparation targets the default Ideas layout in both versions; assisted preparation remains available.'
             if sys.platform == 'darwin' else
             'Windows 64-bit. External VST2 rendering loads saved presets directly. Maschine rendering also supports internal synths and automatically caches kits for later exports. Installed instruments and content are required.')
         render_help.setWordWrap(True)

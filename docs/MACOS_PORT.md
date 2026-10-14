@@ -32,7 +32,7 @@ and MIDI rendering logic are shared with Windows. Mac cache keys include the
 bundle executable identity and running architecture. Existing Windows cache
 keys are preserved. Assisted preparation remains available as a fallback.
 
-The adapter relies on Maschine's Qt/Cocoa view and default layout, not a public
+The adapter selects the editor from validated project archive 19 (Maschine 2) or 20 (Maschine 3). Version 2 uses a native view that advertises file drops and a legacy file-list pasteboard; version 3 uses its Qt/Cocoa view. Both rely on the default layout, not a public
 NI batch API. Apple documents the [drag-destination lifecycle](https://developer.apple.com/documentation/appkit/nsdraggingdestination).
 That API documentation and synthetic tests do not establish that Maschine
 accepts these events on the target system.
@@ -42,11 +42,14 @@ accepts these events on the target system.
 From the repository on each target architecture, run:
 
 ```bash
-uv run --locked --python 3.13 python scripts/qualify_macos.py "/path/to/Kit.mxgrp"
+uv run --locked --python 3.13 python scripts/qualify_macos.py "/path/to/Kit.mxgrp" \
+  --plugin "/Library/Audio/Plug-Ins/VST3/Maschine 2.vst3" --output tmp/mac-m2-check
+uv run --locked --python 3.13 python scripts/qualify_macos.py "/path/to/Kit.mxgrp" \
+  --plugin "/Library/Audio/Plug-Ins/VST3/Maschine 3.vst3" --output tmp/mac-m3-check
 ```
 
 Use a kit with both an internal synth and a hosted instrument. The command
-prepares the kit, checks cache-only resume without host creation, renders every
+runs two independent preparation/render host cycles, checks cache-only resume without host creation, renders every
 instrument pad and checks finite non-silent audio and unchanged source bytes.
 Use a fresh `--output` directory to test cold preparation; the default is
 `tmp/macos-qualification`. Listen to the WAVs and check GUI cancellation, missing
@@ -62,4 +65,4 @@ remains gated by `packaging/release_review.json` and the release checklist.
 
 The Tests workflow has an optional **package** input for building test artifacts without creating a release. It is off by default and has not been run for this change.
 
-Maschine 2 project-state decoding and host discovery are shared with Windows. Its older native editor differs from Maschine 3: automatic Cocoa preparation is not implemented for that older editor. Use assisted preparation for Maschine 2 on Mac until a real-Mac adapter is available; rendering on Mac remains unqualified for both versions.
+Run both explicit engine commands on each target architecture. Adjust the plug-in path for a user-level installation. Reports record the selected engine and architecture; each cycle has a separate cache. The native view and A1 drop coordinates still require real-Mac confirmation for both versions. These checks do not replace listening to the renders or testing the packaged GUI.

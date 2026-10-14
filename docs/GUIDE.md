@@ -101,7 +101,7 @@ Open **Export Groups → Pad and instrument options**. Both rendering options ar
 - **Render external VST2 instruments:** Load each supported instrument's saved chunk into its installed 64-bit VST2 DLL and render one note. Massive and Reaktor/Monark have been tested. Standard VST2 folders are searched automatically; an additional folder takes precedence. A VST3 installation alone does not satisfy this option. This route renders the instrument's main output without the surrounding Maschine effect chain.
 - **Render instruments through Maschine 2 or 3:** Use the installed Maschine 2 or 3 VST3 to render built-in synths such as Drum Synth and Bass Synth. NITools automatically loads and caches kits when needed. With external rendering also enabled, supported VST2 pads take the direct route and other instrument pads use Maschine. With only Maschine rendering enabled, all identified instrument pads use the prepared kit, including its hosted VSTs and effects.
 
-Automatic detection prefers Maschine 3, then Maschine 2. To choose version 2 when both are installed, use **Maschine VST3 → Browse…** and select `Maschine 2.vst3`. An explicit path never falls back to another engine. Changing engines uses a separate prepared-state cache. Windows preparation/rendering has been checked with Maschine **2.18.4** and **3.7.1**; older releases and kits requiring newer engines are not guaranteed. On macOS, assisted preparation can use either VST3, but the automatic Cocoa adapter targets the newer Qt editor and has not been qualified for Maschine 2.
+Automatic detection prefers Maschine 3, then Maschine 2. To choose version 2 when both are installed, use **Maschine VST3 → Browse…** and select `Maschine 2.vst3`. An explicit path never falls back to another engine. Changing engines uses a separate prepared-state cache. Windows preparation/rendering has been checked with Maschine **2.18.4** and **3.7.1**; older releases and kits requiring newer engines are not guaranteed. On macOS, automatic and assisted preparation have adapters for both versions, but neither has been qualified on a real Mac. See MACOS_PORT.md for separate engine checks.
 
 For a large library:
 
@@ -212,3 +212,9 @@ NITools is GPL-licensed software. Its license allows commercial and personal use
 The app does not include vendor instruments, factory content or prepared projects. Preview product names are read from local Native Access Service Center XML metadata when available. No product catalog is shipped; unknown product IDs keep the Native Browser Preview Library folder name.
 
 Prepared-state caches, exports and diagnostic reports stay on your computer. They can contain proprietary states, audio or personal paths. Do not attach them to public bug reports. Prefer the error text with private paths removed and a synthetic reproduction. See the repository's legal section and third-party notices for distribution details.
+
+### Host startup and shutdown
+
+Normal preparation/render hosts now receive a clean shutdown request before a bounded forced-stop fallback. Cancellation and timeouts still stop only NITools’ isolated child. A warning reports a host that cannot close cleanly.
+
+If Maschine times out before its editor opens, check whether standalone Maschine starts too. A Windows incident was traced to an orphaned Boost Interprocess initialization file, not the kit parser; preserving that exact inactive file under a backup name restored startup. Do not delete the entire shared IPC directory, NI browser databases or settings. NITools does not automatically alter shared vendor state. Restarting Windows is the first recovery step for a recurring startup hang; retain logs if it persists.
