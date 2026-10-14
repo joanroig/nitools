@@ -22,12 +22,12 @@ Saved audio, matrix and filter preferences remain active. Review those settings 
 - Export readable filenames such as `01_Kick.wav` and `01_02_Kick.wav`; preserve slot numbering and separate sample zones.
 - Use consistent Process/Export tabs and audio settings across Groups, Kits and Previews. The Activity panel supports following new messages, copying logs and opening a larger reader.
 - Optionally render external VST2 instruments from their saved presets on 64-bit Windows.
-- Optionally render internal Maschine synths and hosted instruments through the installed Maschine 3 VST3. Kits load automatically during export or through a resumable preparation queue. Successful preparations are cached; failed kits are reported and can be retried.
+- Optionally render internal Maschine synths and hosted instruments through the installed Maschine 2 or 3 VST3. Kits load automatically during export or through a resumable preparation queue. Successful preparations are cached; failed kits are reported and can be retried.
 
 ## Compatibility and limits
 
 - Sample and preview export target Windows and macOS. The release workflow is configured to test/build Windows, Intel macOS and Apple Silicon macOS, but the current candidate has only been built and tested locally on Windows. macOS packaging and library workflows remain unverified.
-- **Instrument rendering is experimental.** Direct VST2 DLL hosting remains Windows-only. The new macOS Maschine preparation/rendering adapter is implemented but unverified on real Mac hardware; see [Mac qualification](MACOS_PORT.md). Automatic preparation has been tested with Maschine 3.7.1 and its default hosted-editor layout. The matching installed plug-ins and licensed content are required. No Native Instruments software, samples or presets are included.
+- **Instrument rendering is experimental.** Direct VST2 DLL hosting remains Windows-only. The new macOS Maschine preparation/rendering adapter is implemented but unverified on real Mac hardware; see [Mac qualification](MACOS_PORT.md). Windows automatic preparation has been tested with Maschine 2.18.4 and 3.7.1 and its default hosted-editor layout. The matching installed plug-ins and licensed content are required. No Native Instruments software, samples or presets are included.
 - Instrument export renders one note per identified instrument pad. It is not a multisampled instrument or a pattern bounce. Sample pads continue to export their source audio. Direct VST2 rendering does not reproduce surrounding Maschine effects.
 - Unknown file layouts, missing content, loading timeouts and failed renders are reported as incomplete work. Support is demonstrated for the tested files, not every historical or future NI format or plug-in.
 - Windows and macOS packages are not signed/notarized. Independent clean-machine and listening checks remain outside the completed local qualification.
@@ -35,3 +35,5 @@ Saved audio, matrix and filter preferences remain active. Review those settings 
 See the included PDF or [User Guide](GUIDE.md) for setup, automatic preparation, command-line options and troubleshooting.
 
 Source maintenance: removed obsolete prototype decoders and the dependency-rewrite helper; moved native hosts to `src/hosts`, maintenance commands to `scripts`, and guide generation to `packaging`. Build dependencies are separate from runtime dependencies. User libraries, exports and research data are preserved.
+
+Maschine engine discovery prefers 3, then 2. Select `Maschine 2.vst3` explicitly to use version 2 when both are installed. Explicit selection never silently changes engines; caches remain separate. Maschine 2 uses project archive 19 and its older Windows editor; Maschine 3 uses archive 20 and its Qt editor. Older versions are not qualified. Mac automatic preparation of the older Maschine 2 editor is not implemented; assisted preparation is the available route there.

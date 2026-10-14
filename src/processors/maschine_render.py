@@ -21,17 +21,18 @@ from formats.maschine_project import route_kit_preset
 def plugin_path(options):
     if options.maschine_plugin:
         candidates = [Path(options.maschine_plugin)]
-    elif sys.platform == 'darwin':
-        candidates = [Path.home() / 'Library/Audio/Plug-Ins/VST3/Maschine 3.vst3',
-                      Path('/Library/Audio/Plug-Ins/VST3/Maschine 3.vst3')]
     else:
-        candidates = [Path(os.environ.get('CommonProgramFiles', r'C:\Program Files\Common Files'))
-                      / 'VST3/Maschine 3.vst3']
+        roots = ([Path.home() / 'Library/Audio/Plug-Ins/VST3', Path('/Library/Audio/Plug-Ins/VST3')]
+                 if sys.platform == 'darwin' else
+                 [Path(os.environ.get('CommonProgramFiles', r'C:\Program Files\Common Files')) / 'VST3'])
+        # Prefer 3 when both are installed. An explicit selection never falls
+        # back to a different engine if it is missing or cannot load the kit.
+        candidates = [root / f'Maschine {version}.vst3' for version in (3, 2) for root in roots]
     for path in candidates:
         if path.suffix.lower() == '.vst3' and (path.is_dir() if sys.platform == 'darwin' else path.is_file()):
             plugin_binary(path)  # Reject malformed bundles before opening a host.
             return path.resolve()
-    raise ValueError('Maschine 3 VST3 was not found. Select its installed .vst3 bundle on macOS or file on Windows.')
+    raise ValueError('Maschine 2 or 3 VST3 was not found. Select its installed .vst3 bundle on macOS or file on Windows.')
 
 
 def plugin_binary(path):

@@ -1,4 +1,4 @@
-"""Validate a single-kit Maschine 3 VST3 state and enable pad MIDI routing.
+"""Validate a single-kit Maschine 2/3 VST3 state and enable pad MIDI routing.
 
 Only the Group's serialized routing property is changed. The original kit,
 instruments, effects and other project state are preserved. Unknown layouts
@@ -83,13 +83,13 @@ def route_kit_preset(preset, expected_names, expected_group):
     archive = h.payload[16:16 + length]
     signature, at = _text(archive, 0)
     archive_version, _ = _uint(archive, at)
-    if signature != 'serialization::archive' or archive_version != 20:
-        raise FormatError('Prepare this kit using Maschine 3; this project archive version is not supported')
+    if signature != 'serialization::archive' or archive_version not in (19, 20):
+        raise FormatError('Unsupported Maschine project archive; validated versions are 19 (Maschine 2.18.4) and 20 (Maschine 3.7.1)')
     names = _channel_names(archive, 0, expected_count=18)
     if len(expected_names) != 16 or [n.text for n in names[:16]] != list(expected_names) or names[16].text != expected_group:
         raise FormatError('Loaded kit does not match the selected kit and its 16 sound names. Load it into the only Group, A1.')
     group, master = names[-2:]
-    # In the v20 project layout, the last three Group Boolean parameters
+    # In the validated v19/v20 layouts, the last three Group Boolean parameters
     # precede the Master Channel's object graph. The first is Drumkit mode.
     ident = master.object_id - 28
     marker = b''.join(_encoded(n) for n in range(ident, ident + 5))

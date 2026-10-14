@@ -69,7 +69,7 @@ The initial idea was to export Maschine groups to use them in the Roland SP 404 
 - **GUI & CLI:** Use via graphical interface or command line for maximum flexibility.
 - **Portable:** Pre-built executables, no Python installation required.
 - **Cross-Platform:** Supports Windows and macOS.
-- **Maschine Groups Exporter:** Extract samples from `.mxgrp` files, with optional instrument rendering on Windows through installed VST2 plug-ins or prepared Maschine 3 kits.
+- **Maschine Groups Exporter:** Extract samples from `.mxgrp` files, with optional instrument rendering on Windows through installed VST2 plug-ins or prepared Maschine 2/3 kits.
 - **NKS Previews Exporter:** Convert NKS audio previews to WAV for one-shot instruments on other platforms.
 - **Battery Kits Exporter:** Decode `.nbkt` cell sample references and export the original sample zones.
 - **Consistent workflows:** Kits, Groups and Previews share live progress, cancellation, error reporting and bounded parallel audio conversion.
@@ -109,7 +109,7 @@ Run from source on Mac with `bash run.sh` (Python 3.13). See the
 - Shares audio conversion, matrix, filter, and preview options with the Groups Exporter.
 - Reports missing exact paths and conversion failures as incomplete exports; no fuzzy replacements.
 
-Rebuild old JSON indexes and use a fresh output folder when upgrading from the earlier heuristic parsers. The exporters reject indexes without the current structured-decoder marker. Both exporters preserve every sample zone, including Maschine Audio-module takes. Sample export copies source audio without recreating its native processing. The Groups Exporter also offers experimental instrument rendering. Maschine kits can be prepared automatically during export or in a resumable batch queue; no per-kit manual loading is required for the supported Maschine 3 setup. See the [User Guide](docs/GUIDE.md#optional-instrument-rendering-64-bit) for setup and limitations.
+Rebuild old JSON indexes and use a fresh output folder when upgrading from the earlier heuristic parsers. The exporters reject indexes without the current structured-decoder marker. Both exporters preserve every sample zone, including Maschine Audio-module takes. Sample export copies source audio without recreating its native processing. The Groups Exporter also offers experimental instrument rendering. Maschine kits can be prepared automatically during export or in a resumable batch queue; no per-kit manual loading is required for the validated Maschine 2/3 setups. See the [User Guide](docs/GUIDE.md#optional-instrument-rendering-64-bit) for setup and limitations.
 
 See the [2.0 release notes](docs/RELEASE_NOTES_2_0.md) for upgrade instructions and the [verification record](docs/RELEASE_2_0.md) for tested scope and remaining compatibility checks.
 
@@ -229,10 +229,10 @@ Options:
 - `--skip_existing` → Skip processing if output file already exists
 - `--render_instruments` → Render supported external VST2 instrument presets using installed 64-bit plug-ins (Windows)
 - `--vst2_folder <folder>` → Additional VST2 DLL search folder
-- `--render_maschine` → Render internal/other instrument pads through Maschine 3; automatically prepare and cache uncached kits
+- `--render_maschine` → Render internal/other instrument pads through Maschine 2/3; automatically prepare and cache uncached kits
 - `--no_auto_prepare` → Restrict Maschine rendering to previously prepared kits
 - `--prepare_timeout <seconds>` → Kit loading timeout (default 120; 5–900)
-- `--maschine_plugin <file>` / `--maschine_cache <folder>` → Override the detected Maschine 3 VST3 or prepared-state cache location
+- `--maschine_plugin <file>` / `--maschine_cache <folder>` → Override the detected Maschine 2/3 VST3 or prepared-state cache location
 - `--render_note <0–127>` / `--render_velocity <1–127>` → External VST2 note (default 60) and shared velocity (default 100)
 - `--render_hold <seconds>` / `--render_tail <seconds>` → Held note and release length (defaults 1 and 2 seconds)
 

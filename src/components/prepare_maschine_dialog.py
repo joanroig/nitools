@@ -36,7 +36,7 @@ class PrepareMaschineDialog(QtWidgets.QDialog):
         folder_button.clicked.connect(lambda: QtGui.QDesktopServices.openUrl(
             QtCore.QUrl.fromLocalFile(str(Path(self.source).parent))))
         layout.addWidget(folder_button, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
-        self.status = QtWidgets.QLabel('Ready to open Maschine 3.')
+        self.status = QtWidgets.QLabel('Ready to open the selected Maschine host.')
         self.status.setWordWrap(True)
         self.status.setMinimumHeight(48)
         layout.addWidget(self.status)
@@ -66,7 +66,7 @@ class PrepareMaschineDialog(QtWidgets.QDialog):
             return
         finally:
             child.close()
-        self.status.setText('Opening Maschine 3… This may take a little while.')
+        self.status.setText('Opening the selected Maschine host… This may take a little while.')
         self.start_button.setEnabled(False)
         self.close_button.setText('Cancel preparation')
         self.timer.start()

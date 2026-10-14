@@ -1,8 +1,8 @@
-"""Load a group into our own Maschine 3 editor using its Windows file drop.
+"""Load a group into our own Maschine 2/3 editor using its Windows file drop.
 
 This runs on the isolated host's main thread. No foreground input, library
 search, standalone Maschine instance, or user's document is involved. The
-Windows OLE target property and Maschine 3 editor layout are version-sensitive;
+Windows OLE target property and Maschine 2/3 editor layout are version-sensitive;
 an accepted drop is never treated as proof of loading: the project is decoded
 and checked before returning it.
 """
@@ -59,13 +59,15 @@ class _FileDrop:
                 return True
             name = C.create_unicode_buffer(256)
             self.user.GetClassNameW(hwnd, name, 256)
-            if name.value.startswith('Qt') and 'NI_' in name.value and 'QWindowIcon{' in name.value:
+            legacy = name.value.startswith('NIVSTChildWindow')
+            modern = name.value.startswith('Qt') and 'NI_' in name.value and 'QWindowIcon{' in name.value
+            if legacy or modern:
                 pointer = self.user.GetPropW(hwnd, 'OleDropTargetInterface')
                 rect = W.RECT()
                 self.user.GetWindowRect(hwnd, C.byref(rect))
                 scale = (self.user.GetDpiForWindow(hwnd) or 96) / 96
                 if pointer and rect.right - rect.left >= 1000 * scale and rect.bottom - rect.top >= 600 * scale:
-                    targets.append((hwnd, pointer, rect, scale))
+                    targets.append((hwnd, pointer, rect, scale, 180 if legacy else 155))
             return True
 
         @self.callback
@@ -76,7 +78,7 @@ class _FileDrop:
 
         self.user.EnumThreadWindows(self.kernel.GetCurrentThreadId(), top, 0)
         if len(targets) != 1:
-            raise ValueError('Could not identify the Maschine 3 group editor; automatic loading requires its default layout')
+            raise ValueError('Could not identify the Maschine 2/3 group editor; automatic loading requires its default layout')
         return targets[0]
 
     def data_object(self, source):
@@ -98,14 +100,14 @@ class _FileDrop:
             _method(shell_item, 2, W.ULONG)(shell_item)
 
     def drop(self, source):
-        hwnd, pointer, rect, scale = self.target()
+        hwnd, pointer, rect, scale, drop_y = self.target()
         if not self.user.IsWindowEnabled(hwnd):
             raise ValueError('Maschine is waiting for a dialog; check its installed plug-ins and content')
         data = self.data_object(source)
         entered = False
         try:
-            # A1 in Maschine 3's fresh project/Ideas layout. No mouse movement.
-            point = W.POINT(rect.left + round(410 * scale), rect.top + round(155 * scale))
+            # A1 in Maschine 2/3's fresh project/Ideas layout. No mouse movement.
+            point = W.POINT(rect.left + round(410 * scale), rect.top + round(drop_y * scale))
             effect = W.DWORD(1)  # Copy, never move the source.
             result = _method(pointer, 3, C.c_long, C.c_void_p, W.DWORD, W.POINT, C.POINTER(W.DWORD))(
                 pointer, data, 1, point, C.byref(effect))

@@ -15,6 +15,25 @@ from processors.maschine_render import cache_paths, plugin_path
 
 
 class PlatformHostTests(unittest.TestCase):
+    def test_auto_discovery_prefers_3_then_2_and_explicit_path_never_falls_back(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            vst = root / 'VST3'
+            vst.mkdir()
+            two, three = vst / 'Maschine 2.vst3', vst / 'Maschine 3.vst3'
+            two.write_bytes(b'2')
+            with patch('processors.maschine_render.sys.platform', 'win32'), patch.dict('os.environ', {'CommonProgramFiles': folder}):
+                self.assertEqual(plugin_path(RenderOptions()), two.resolve())
+                three.write_bytes(b'3')
+                self.assertEqual(plugin_path(RenderOptions()), three.resolve())
+                self.assertEqual(plugin_path(RenderOptions(maschine_plugin=str(two))), two.resolve())
+                source = root / 'Kit.mxgrp'
+                source.write_bytes(b'kit')
+                self.assertNotEqual(cache_paths(source, RenderOptions(maschine_plugin=str(two))),
+                                    cache_paths(source, RenderOptions(maschine_plugin=str(three))))
+                with self.assertRaises(ValueError):
+                    plugin_path(RenderOptions(maschine_plugin=str(vst / 'missing.vst3')))
+
     def test_mac_bundle_cache_tracks_executable_updates_and_architecture(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

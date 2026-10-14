@@ -6,7 +6,7 @@ Release target as of 2026-10-14: **2.0.0**. The incompatible kit/group index cha
 
 - Battery and Maschine indexes use structured binary decoding of stored sample references, cell/slot numbers and sample zones. Missing exact references fail visibly instead of selecting similar filenames.
 - Exports retain sample names and every decoded zone, including Battery cells above 16 and Maschine Audio-module takes.
-- Groups offers experimental instrument rendering (Windows qualified fixtures; Mac adapter unverified): direct installed VST2 presets, or internal/hosted instruments through the installed Maschine 3 VST3. Kits prepare automatically during export or through a resumable batch queue, with an assisted single-kit fallback. Raw sample export remains independent of rendering.
+- Groups offers experimental instrument rendering (Windows qualified fixtures; Mac adapter unverified): direct installed VST2 presets, or internal/hosted instruments through the installed Maschine 2/3 VST3. Kits prepare automatically during export or through a resumable batch queue, with an assisted single-kit fallback. Raw sample export remains independent of rendering.
 - Large Group scans use up to eight decoder processes; all three audio exporters use bounded parallel conversion. Live progress, cancellation, safe output replacement and incomplete-result reporting are shared.
 - All three windows have consistent Process/Export tabs, audio settings, expandable options and a compact Activity card with follow, copy, clear and a larger log reader.
 - Release builds use locked dependencies, preserve other local builds and create a draft only after Windows, Intel Mac and Apple Silicon Mac tests/builds pass.
@@ -21,7 +21,7 @@ Saved matrix/filter/audio preferences remain active. Review the summary on colla
 
 | Check | Evidence / result |
 | --- | --- |
-| Automated suite | 102 tests run on Windows: 101 passed and one Mac-only Cocoa check skipped, Python 3.14.5 and PySide6 6.10.3 (21.782 s on 2026-10-14), including parser bounds, resolution, all three exporters, atomic failures, render/preparation cancellation/crashes/timeouts, batch checkpoints and host reuse, prepared-state validation, GUI settings/layout/activity, local product metadata and package-content rules. |
+| Automated suite | 104 tests run on Windows: 103 passed and one Mac-only Cocoa check skipped, Python 3.14.5 and PySide6 6.10.3 (20.192 s on 2026-10-14), including parser bounds, resolution, all three exporters, atomic failures, render/preparation cancellation/crashes/timeouts, batch checkpoints and host reuse, prepared-state validation, GUI settings/layout/activity, local product metadata and package-content rules. |
 | Installed Maschine corpus | 5,849 groups decoded; 140,354 nonempty references resolved. This is a decoding/resolution check, not an export of every referenced sound. A subsequent native app run also showed 5,849 decoded with zero errors. |
 | Raw exports | Earlier qualification exported 5,485 samples from 159 Battery kits and 139 Maschine groups with source/output SHA-256 equality and unchanged input files. |
 | Audio-module recovery | All 5,849 installed groups decoded again with zero errors, 2,892 Audio-module pads recovered, and no changes to previously decoded nonempty paths. |
@@ -65,3 +65,7 @@ These checks define the unqualified scope disclosed in the release notes. Compat
 4. Verify the draft package list and checksums, review the release notes and their explicit compatibility limits, then publish the draft.
 
 If a build fails after the version commit, fix the branch and rerun with **none** to retain 2.0.0. Existing tags are rejected; the workflow never force-updates a release tag. Publishing is a separate manual action.
+
+Maschine 2 support was added locally after the restructure: Windows 2.18.4 cold preparation, cache-only resume, internal Tom and hosted Massive rendering passed with unchanged source bytes. Discovery prefers 3, then 2; explicit plug-in paths do not fall back. Both engines retain separate caches. Mac automatic loading of Maschine 2’s older editor is not implemented; assisted preparation is the available route.
+
+**Open regression, 2026-10-14:** fresh Maschine 3 source preparation and frozen cached-state rendering timed out after 90 s. A diagnostic source run stalled inside `pedalboard.load_plugin` before NITools kit loading. The earlier successful Maschine 3 evidence is historical; do not treat the current candidate as fully qualified for Maschine 3 until this initialization issue is resolved. Explicit Maschine 2 selection passed both source and frozen checks.

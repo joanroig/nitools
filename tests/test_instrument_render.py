@@ -127,6 +127,16 @@ class InstrumentFormatTests(unittest.TestCase):
         default_state = project_preset(mode=(0, 0, 0, 0, 0, 0))
         self.assertEqual(route_kit_preset(default_state, names, 'Kit'), routed)
 
+    def test_maschine2_routing_preserves_version_and_controller(self):
+        names = [f'Sound {i}' for i in range(1, 17)]
+        original = project_preset(version=19)
+        routed = route_kit_preset(original, names, 'Kit')
+        self.assertNotEqual(original, routed)
+        self.assertEqual(route_kit_preset(routed, names, 'Kit'), routed)
+        self.assertEqual(routed, project_preset(version=19, mode=(0, 1, 1, 0, 0, 0)))
+        with self.assertRaises(FormatError):
+            route_kit_preset(project_preset(version=18), names, 'Kit')
+
     def test_wrong_kit_extra_group_unknown_version_and_routing_fail(self):
         names = [f'Sound {i}' for i in range(1, 17)]
         for data, expected, group in (

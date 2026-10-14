@@ -183,3 +183,14 @@ Mac preparation uses a private Cocoa file-URL drop into the isolated hosted Masc
 Local suite: 102 tests run, 101 passed and the real-Cocoa check skipped on Windows. Publication remains disabled and no push or release is authorized.
 
 The rebuilt Windows executable reused the existing preparation cache without host creation, then rendered Manhattan internal Tom and hosted Massive to finite non-silent 48 kHz WAVs (33.15 s total). The refreshed 343-entry ZIP passed integrity checks, dependency inventory retained 24 providers/221 payload files, and the updated 12-page guide was visually reviewed.
+
+
+## 2026-10-14: Maschine 2 host support
+
+Inspected installed Maschine 2.18.4 VST3 state: project archive 19 has the same validated Group Boolean routing structure as archive 20. Added bounded v19 support without accepting unknown older schemas. Its Windows editor uses NIVSTChildWindow and A1 at logical (410, 180), versus Qt and (410, 155) for Maschine 3. Automatic selection prefers 3, then 2; an explicit path overrides discovery without fallback. Plugin identity already separates cached states. No proprietary state or audio enters source control.
+
+A cold Windows Maschine 2.18.4 run prepared Manhattan, resumed without creating a host, and rendered internal Tom and hosted Massive to finite non-silent 48 kHz audio with unchanged source kit bytes (20.46 seconds total). This is a fixture check, not qualification of every kit/version. Mac Maschine 2 automatic loading remains unsupported because its older native editor needs a real-Mac adapter; assisted state preparation and rendering use the shared reader. No push or release.
+
+The rebuilt Windows package also passed cold Maschine 2 preparation (11.60 s), cache-only resume, and internal Tom/hosted Massive rendering (21.06 s total). The 104-test suite passed with one Cocoa-only skip; ZIP/payload checks and the updated 12-page guide review passed. An additional cold Maschine 3 source regression timed out at 90 seconds before its editor opened; a diagnostic run confirmed the same timeout inside Pedalboard load_plugin, before the NITools loading adapter executes. This does not invalidate the earlier Maschine 3 fixtures, but that fresh check must not be reported as passing.
+
+The current frozen Maschine 3 cached-state render also timed out after 90 s. Earlier Maschine 3 results remain historical evidence only; current initialization/render timeout is an open release gate. No increase to timeouts or automatic cross-engine fallback was introduced to hide the failure. Maschine 2 remains explicitly selectable and passed the same packaged fixture.

@@ -9,14 +9,14 @@ Use macOS 13 or newer, Python 3.13 and `uv`. Both Intel and Apple Silicon have
 matching Pedalboard wheels for Python 3.13. The app and installed plug-ins must
 use compatible architectures. Run `uv sync --locked --python 3.13`, then `bash run.sh`.
 
-Install/authorize Maschine 3 and the instruments/content required by your kits
+Install/authorize Maschine 2 or 3 and the instruments/content required by your kits
 separately. No NI software or prepared template is included. NITools looks for
-`Maschine 3.vst3` in the user and system `Library/Audio/Plug-Ins/VST3` locations;
+`Maschine 3.vst3`, then `Maschine 2.vst3`, in the user and system `Library/Audio/Plug-Ins/VST3` locations;
 the Browse button can select another `.vst3` bundle.
 
 ## Rendering and automatic preparation
 
-Enable **Render instruments through Maschine 3** in Groups Export. This route
+Enable **Render instruments through Maschine 2 or 3** in Groups Export. This route
 handles internal synths and instruments hosted by Maschine. The separate direct
 VST2 DLL route remains Windows-only and is disabled in the Mac UI.
 
@@ -61,3 +61,5 @@ Build using `bash bundle_app_macos.sh arm64 --ci` or `x86_64 --ci`. Publication
 remains gated by `packaging/release_review.json` and the release checklist.
 
 The Tests workflow has an optional **package** input for building test artifacts without creating a release. It is off by default and has not been run for this change.
+
+Maschine 2 project-state decoding and host discovery are shared with Windows. Its older native editor differs from Maschine 3: automatic Cocoa preparation is not implemented for that older editor. Use assisted preparation for Maschine 2 on Mac until a real-Mac adapter is available; rendering on Mac remains unqualified for both versions.
