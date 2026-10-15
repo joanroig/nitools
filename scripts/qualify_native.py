@@ -1,11 +1,12 @@
 """Local real-engine check. Requires an installed/licensed Maschine and one kit.
 
-Run with Python 3.13 on a Mac; writes only to the selected output directory.
+Run on Windows or macOS; writes only to the selected output directory.
 Never attach the resulting cached states/audio/report to a public issue.
 """
 import argparse
 import hashlib
 import json
+import multiprocessing
 import platform
 from pathlib import Path
 import sys
@@ -19,10 +20,18 @@ def main():
     parser.add_argument('kit', type=Path)
     parser.add_argument('--plugin', default='')
     parser.add_argument('--cycles', type=int, default=2, help='Independent preparation/render host cycles (default: 2)')
-    parser.add_argument('--output', type=Path, default=Path('tmp/macos-qualification'))
+    parser.add_argument('--output', type=Path, required=True, help='Fresh private output directory')
+    parser.add_argument('--executable', type=Path, help='Test child hosts in a built NIToolsApp.exe or NITools.app/Contents/MacOS/NITools')
     args = parser.parse_args()
-    if sys.platform != 'darwin':
-        parser.error('Run this qualification on macOS with Maschine installed')
+    if sys.platform not in ('win32', 'darwin'):
+        parser.error('Run this qualification on Windows or macOS with Maschine installed')
+    if args.executable:
+        if not args.executable.is_file():
+            parser.error('--executable must be an existing packaged app executable')
+        multiprocessing.set_executable(str(args.executable.resolve()))
+        # Use the frozen spawn protocol (--multiprocessing-fork first), not
+        # Python's -c/-X flags, which a windowed bootloader cannot interpret.
+        sys.frozen = True
     if args.cycles < 1:
         parser.error('--cycles must be positive')
     from formats.maschine import parse_maschine
@@ -32,6 +41,8 @@ def main():
     pads = [s for s in decoded['samples'] if s.get('instrument')]
     if not pads:
         parser.error('Choose a kit containing internal or hosted instruments')
+    if args.output.exists() and any(args.output.iterdir()):
+        parser.error('--output must be empty so preparation is tested without a previous cache')
     args.output.mkdir(parents=True, exist_ok=True)
     for cycle in range(1, args.cycles + 1):
         qualify_cycle(args.kit, args.plugin, args.output / f'cycle-{cycle}', pads, original)
@@ -60,6 +71,7 @@ def qualify_cycle(kit, plugin, output, pads, original):
             session.close()
     native = NativeSession(kit.resolve(), options)
     report = {'plugin': str(plugin_path(options)), 'architecture': platform.machine(),
+              'platform': sys.platform,
               'preparation': prepared, 'cache_resume': True, 'renders': []}
     try:
         for sample in pads:

@@ -75,3 +75,5 @@ if ($UnexpectedFiles.Count -gt 0) {
 $ZipName = "NITools_Windows_v$VERSION.zip"
 $ZipPath = Join-Path $BaseDistPath $ZipName
 Compress-Archive -Path $PlatformDistPath -DestinationPath $ZipPath -Force
+& $BuildPython (Join-Path $repoDir 'packaging\verify_package.py') --windows $PlatformDistPath --zip $ZipPath
+if ($LASTEXITCODE -ne 0) { throw 'Finished Windows package verification failed.' }

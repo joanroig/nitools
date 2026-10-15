@@ -22,6 +22,12 @@ class ReleaseContentTests(unittest.TestCase):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 policy.check_payload_name(name)
 
+    def test_nested_plugin_bundles_and_unsafe_paths_are_rejected(self):
+        for name in ('Maschine.vst3/Contents/MacOS/Maschine', '../secret',
+                     '/outside/file', 'C:/outside/file', 'resources/../secret'):
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                policy.check_payload_name(name)
+
     def test_unreviewed_resource_fails_even_when_extension_looks_safe(self):
         with tempfile.TemporaryDirectory() as folder:
             Path(folder, 'readme.txt').write_text('extra', encoding='utf-8')

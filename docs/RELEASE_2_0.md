@@ -2,7 +2,9 @@
 
 Release target as of 2026-10-14: **2.0.0**. The incompatible kit/group index change requires a major version. Local Windows qualification is recorded below; publication requires the GitHub release builds to pass. See [release notes](RELEASE_NOTES_2_0.md) for the user-facing upgrade instructions and compatibility limits.
 
-The current source passes 121 tests with one Mac-only test skipped (122 run, 2026-10-15). Full index builds decode 5,849 Maschine groups and 5,511 Battery kits without errors. The previously qualified Windows package predates the decoder/indexing changes and needs rebuilding/requalification before distribution. See [decoder scope and evidence](MASCHINE_FORMAT.md).
+The current source passes 125 tests with one Mac-only test skipped (126 run, 2026-10-15). The Windows candidate has been rebuilt with the current decoder/indexing changes. Its packaged builders decode 5,849 Maschine groups and 5,511 Battery kits without errors, including the complete Battery GUI workflow. This is a local candidate; the publication gates below remain open. See [decoder scope and evidence](MASCHINE_FORMAT.md).
+
+Current ZIP: `dist/NITools_Windows_v2.0.0.zip`, SHA-256 `fb1f16e20427c41191723baaf4b26ef894f97a46ed8c71b78c126ebddca1bc69`.
 
 ## Changes for 2.0
 
@@ -23,6 +25,10 @@ Saved matrix/filter/audio preferences remain active. Review the summary on colla
 
 | Check | Evidence / result |
 | --- | --- |
+| Current Windows candidate (2026-10-15) | Rebuilt executable and ZIP: 235 embedded entries, 221 inventoried native/data files, 24 dependency providers and 253 ZIP files. Finished-payload checks pass; every ZIP file matches the checked folder. All 12 guide pages were visually inspected. Runtime DLLs remain excluded. These automated checks do not clear the outstanding provenance/source obligations. |
+| Current packaged indexing | Complete Battery GUI run: 5,511 records, zero errors and live progress. Packaged Group builder: 5,849 records, zero errors. A controlled packaged cancellation after at least 32 records left the prior index hash unchanged and no child workers running. The GUI runs completed before manual cancellation could be exercised; the cancellation evidence is from the packaged builder harness. Owner configuration was restored byte-for-byte. |
+| Current packaged native hosts | Maschine 3 passed two cold preparation/render cycles; Maschine 2 passed two before the final worker-stream fix and one after it. Each checked cache-only resume, internal Tom and hosted Massive finite non-silent 48 kHz audio, and unchanged Manhattan kit bytes. Maschine 2 logged bounded forced-shutdown warnings, including in the final cycle; graceful shutdown is not claimed. No timeout was increased and no vendor shared files were modified. Listening acceptance remains open. |
+| Current final suite | 126 tests run: 125 passed, one Mac-only Cocoa check skipped. Package regressions cover missing notices/payloads, nested plug-in bundles, unsafe paths, changed/duplicate ZIP entries and windowed worker streams. |
 | Current source review | 122 tests run: 121 passed, one Mac-only Cocoa check skipped (2026-10-15). Added failure injection for index/settings writes, cancellation during the first decode batch, child-crash cleanup/restart, additional Battery record/path versions and hidden-cell export warnings. This does not requalify the older package or native audio hosts. |
 | Expanded Battery corpus | 5,511/5,511 kits decoded, recovering 1,272 previously rejected files; all 4,239 previously successful decoded records remain identical. Five kits have populated cells outside their saved grid, preserved separately without export pad numbers. Both full production index builders completed with zero decode errors. This is not a full-library audio export or path-resolution claim. |
 | Recovered Battery export check | Ten previously rejected kits: 257 exported samples matched source SHA-256 hashes, 25 unavailable exact references were reported, and original kit hashes were unchanged. No substitute paths were selected. |
@@ -40,14 +46,14 @@ Saved matrix/filter/audio preferences remain active. Review the summary on colla
 | Native Windows UI | Inspected all three Process/Export layouts at the saved window size; inspected the new populated Activity card and larger log reader in the source app. The final PySide Windows package opens from the prerequisite launcher with the original home screen, and Groups, Kits and Previews each open successfully. |
 | Release definitions | Both workflows pass actionlint 1.7.12; PowerShell/Bash scripts pass syntax checks; `uv lock --check` passes. Publication is blocked by `packaging/release_review.json` before any release version commit, tag or upload. Ordinary source pushes and local builds remain available. |
 | GitHub backlog | No open issues or pull requests in `joanroig/nitools` when checked on 2026-10-13. This does not replace the pending release checks. |
-| Performance | Matched full-library Group indexing improved from 275.20 s to 14.75 s; a normal Qt worker run took 21.76 s. All three exporters share the faster audio path. See [DECISIONS.md](DECISIONS.md) for benchmark conditions and export comparisons. |
+| Historical performance | The earlier scanner's matched full-library Group indexing improved from 275.20 s to 14.75 s; this is not the current sequential decoder's speed. The structured reader's later matched comparison improved from 54.1 s to 29.1 s. The current packaged Group build took 48.34 s while other checks were running, so it is not a matched benchmark. See [DECISIONS.md](DECISIONS.md) for conditions and export comparisons. |
 
-Local scripts, reports and screenshots are under ignored `tmp/`; proprietary library files are not included in the repository. The public tests use synthetic fixtures. See [GUIDE.md](GUIDE.md) for usage and troubleshooting.
+Older rows describe earlier qualification and do not override the current results above. The former `tmp/` tree and old build directories are now absent; only the current Windows build/output directories were found on 2026-10-15. Current diagnostic scripts, private indexes and render outputs use the system temporary directory and are not release inputs. The public tests use synthetic fixtures. See [GUIDE.md](GUIDE.md) for usage and troubleshooting.
 
 ## Release gates
 
-- **Local only at the maintainer's request (2026-10-14).** Do not push, create a tag, dispatch a release build or publish a release without a new instruction.
-- Resolve distribution terms/provenance for the original home screen's music-service icons. They are retained in the local candidate to preserve the maintainer's design; no claim of redistribution clearance is made.
+- **Local only at the maintainer's request.** The request to aim for 2.0 qualification does not lift the existing no-push instruction. Do not push, create a tag, dispatch a release build or publish without renewed authorization.
+- Resolve distribution terms/provenance for the original home screen's music-service icons. On 2026-10-15 the maintainer explicitly chose to retain them pending rights review; this gate remains open.
 - Complete the dependency corresponding-source review and native third-party notices. In particular, identify the Windows libsndfile wheel's statically linked codec versions/build inputs, and cover Pedalboard's submodules and Qt's third-party components. Current installed wheel notices alone are insufficient to call this complete.
 - Qualify the new Windows prerequisite launcher on a clean machine, including installer cancellation/failure and restart handling. Download/signature verification and local installed-runtime behavior can be checked separately; do not claim a real installation was tested if it was not.
 - Run the committed release workflow on GitHub and require all three jobs to pass. Local syntax checks do not prove GitHub runner execution.
@@ -68,6 +74,8 @@ These checks define the unqualified scope disclosed in the release notes. Compat
 2. Run **Create Release** from that branch with **none** to build the committed 2.0.0 version. For future releases, the workflow can bump and update the version and lockfile together.
 3. All platforms test/build the exact version commit. Only after all jobs succeed does the workflow create a draft containing the Windows ZIP, both Mac DMGs and `SHA256SUMS.txt`.
 4. Verify the draft package list and checksums, review the release notes and their explicit compatibility limits, then publish the draft.
+
+For repeatable local native-host checks on either OS, use `scripts/qualify_native.py` with an original kit, explicit `--plugin`, and an empty private `--output` directory. Add `--executable` pointing at the packaged payload to exercise its child hosts. This command shares the production preparation/cache/render paths and never distributes its output. See [Mac instructions](MACOS_PORT.md) for concrete commands.
 
 If a build fails after the version commit, fix the branch and rerun with **none** to retain 2.0.0. Existing tags are rejected; the workflow never force-updates a release tag. Publishing is a separate manual action.
 

@@ -56,6 +56,13 @@ For a binary release, the maintainer must:
    Automated filename checks are safeguards, not proof of authorship or a legal
    opinion.
 
+The bundlers now invoke `packaging/verify_package.py` on finished output.
+Windows checks the embedded executable payload, resource bytes/version, inventory
+coverage, dependency notices and exact ZIP contents. macOS checks the app tree,
+internal links, resources and inventoried files before signing/DMG creation; the
+DMG itself still requires inspection on a Mac. These checks do not approve the
+separate rights and corresponding-source review.
+
 The release workflow stops before version commits, builds or tags while
 `packaging/release_review.json` is unapproved or contains pending items. Clear
 those items only after the documented checks are complete and the maintainer

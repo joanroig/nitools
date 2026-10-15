@@ -32,9 +32,11 @@ def checked_resources(root):
 def check_payload_name(name):
     normalized = name.replace("\\", "/")
     path = Path(normalized)
+    if normalized.startswith('/') or '..' in path.parts or ':' in normalized:
+        raise ValueError(f"Unsafe release payload path: {name}")
     if MICROSOFT_RUNTIME.match(path.name):
         raise ValueError(f"Microsoft runtime must not be bundled: {name}")
-    if path.suffix.casefold() in PROHIBITED_SUFFIXES or (path.suffix.casefold() == ".wav" and normalized != "resources/audio/.wav"):
+    if any(Path(part).suffix.casefold() in PROHIBITED_SUFFIXES for part in path.parts) or (path.suffix.casefold() == ".wav" and normalized != "resources/audio/.wav"):
         raise ValueError(f"Prohibited content in release payload: {name}")
     if normalized.startswith("resources/") and normalized[10:] not in RESOURCES:
         raise ValueError(f"Unreviewed resource in payload: {name}")

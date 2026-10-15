@@ -57,6 +57,7 @@ MACOSX_DEPLOYMENT_TARGET=13.0 uv run --locked --group build --project "$root" py
 # The .app bundle is now at "$platformDistPath/NITools.app"
 uv run --locked --group build --project "$root" python packaging/collect_licenses.py "$buildPath/nitools" "$platformDistPath/NITools.app/Contents/Resources"
 cp LICENSE THIRD_PARTY_NOTICES.md "$platformDistPath/NITools.app/Contents/Resources/"
+uv run --locked --group build --project "$root" python packaging/verify_package.py --macos "$platformDistPath/NITools.app"
 
 # Resource additions change the bundle seal. Ad-hoc signing is not notarization.
 codesign --force --deep --sign - "$platformDistPath/NITools.app"

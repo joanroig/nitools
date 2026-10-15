@@ -15,6 +15,20 @@ from processors.maschine_render import cache_paths, plugin_path
 
 
 class PlatformHostTests(unittest.TestCase):
+    def test_windowed_worker_streams_exist_before_error_reporting(self):
+        from hosts.runtime import ensure_standard_streams
+        existing = sys.stdout
+        with patch.object(sys, 'frozen', True, create=True), patch.object(sys, 'stderr', None):
+            ensure_standard_streams()
+            try:
+                self.assertIs(sys.stdout, existing)
+                self.assertIsNotNone(sys.stderr)
+                sys.stderr.write('child exception diagnostics\n')
+                ensure_standard_streams()
+                self.assertFalse(sys.stderr.closed)
+            finally:
+                sys.stderr.close()
+
     def test_auto_discovery_prefers_3_then_2_and_explicit_path_never_falls_back(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

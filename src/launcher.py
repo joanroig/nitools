@@ -1,6 +1,8 @@
 # Frozen multiprocessing children must enter their worker before importing Qt
 # or running the single-instance launcher.
 if __name__ == '__main__':
+    from hosts.runtime import ensure_standard_streams
+    ensure_standard_streams()
     from multiprocessing import freeze_support
     freeze_support()
 

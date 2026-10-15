@@ -42,17 +42,18 @@ accepts these events on the target system.
 From the repository on each target architecture, run:
 
 ```bash
-uv run --locked --python 3.13 python scripts/qualify_macos.py "/path/to/Kit.mxgrp" \
+uv run --locked --python 3.13 python scripts/qualify_native.py "/path/to/Kit.mxgrp" \
   --plugin "/Library/Audio/Plug-Ins/VST3/Maschine 2.vst3" --output tmp/mac-m2-check
-uv run --locked --python 3.13 python scripts/qualify_macos.py "/path/to/Kit.mxgrp" \
+uv run --locked --python 3.13 python scripts/qualify_native.py "/path/to/Kit.mxgrp" \
   --plugin "/Library/Audio/Plug-Ins/VST3/Maschine 3.vst3" --output tmp/mac-m3-check
 ```
 
 Use a kit with both an internal synth and a hosted instrument. The command
 runs two independent preparation/render host cycles, checks cache-only resume without host creation, renders every
 instrument pad and checks finite non-silent audio and unchanged source bytes.
-Use a fresh `--output` directory to test cold preparation; the default is
-`tmp/macos-qualification`. Listen to the WAVs and check GUI cancellation, missing
+The required `--output` directory must be empty to test cold preparation.
+To exercise packaged child hosts, add
+`--executable /Applications/NITools.app/Contents/MacOS/NITools`. Listen to the WAVs and check GUI cancellation, missing
 content, unusual layouts and a multiple-kit batch separately.
 
 The output contains licensed state/audio and must remain private. CI runs the

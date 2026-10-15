@@ -4,7 +4,8 @@ import os
 import sys
 
 
-def prepare_plugin_host():
+def ensure_standard_streams():
+    """Windowed workers must be able to report errors and exit without a popup."""
     if not getattr(sys, 'frozen', False):
         return
     # Windowed executables have no standard streams. Native/Python hosts may
@@ -12,6 +13,12 @@ def prepare_plugin_host():
     for name in ('stdout', 'stderr'):
         if getattr(sys, name) is None:
             setattr(sys, name, open(os.devnull, 'w'))
+
+
+def prepare_plugin_host():
+    ensure_standard_streams()
+    if not getattr(sys, 'frozen', False):
+        return
     if sys.platform == 'win32':
         import ctypes
         # PyInstaller prioritizes its extraction folder for DLL dependencies.

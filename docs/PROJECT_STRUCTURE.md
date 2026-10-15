@@ -10,7 +10,7 @@
 | `src/models/`, `src/utils/` | Configuration models and shared supporting utilities |
 | `tests/` | Synthetic regression tests; no NI library fixtures |
 | `packaging/` | PyInstaller specification/hooks, prerequisite launcher, guide generation, inventory and notices |
-| `scripts/` | Maintainer environment/version tools and real-Mac qualification command |
+| `scripts/` | Maintainer environment/version tools and shared native-host qualification command |
 | `resources/`, `icons/` | App resources and platform application icons |
 | `docs/` | Usage, architecture decisions, verification and publication requirements |
 
