@@ -11,6 +11,7 @@ if platform.system() == "Windows":
     import winreg
 
 from processors.index_utils import report_progress
+from utils.file_utils import atomic_write
 from utils.logger import Logger
 
 logger = Logger.get_logger("PreviewsBuilder")
@@ -198,11 +199,10 @@ class PreviewsJsonBuilder:
 
             # Save to JSON
             output_json_path = output_path / "all_previews.json"
-            with open(output_json_path, "w", encoding="utf-8") as f:
-                json.dump(all_samples, f, indent=2, ensure_ascii=False)
+            atomic_write(output_json_path, json.dumps(all_samples, indent=2, ensure_ascii=False).encode("utf-8"))
 
             report_path = output_json_path.with_suffix('.report.json')
-            report_path.write_text(json.dumps({'libraries': total, 'indexed': len(all_samples), 'errors': errors}, indent=2, ensure_ascii=False), encoding='utf-8')
+            atomic_write(report_path, json.dumps({'libraries': total, 'indexed': len(all_samples), 'errors': errors}, indent=2, ensure_ascii=False).encode('utf-8'))
             incomplete = errors or not all_samples
             log = logger.error if incomplete else logger.info
             log("Preview index %s: %s previews, %s errors. Saved to %s; details: %s",

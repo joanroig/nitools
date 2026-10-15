@@ -1,5 +1,7 @@
 import json
 import logging
+import locale
+from pathlib import Path
 import os
 import sys
 
@@ -7,6 +9,7 @@ from PySide6.QtWidgets import QMessageBox
 
 from dialogs.error_dialog import ErrorDialog
 from models.config import Config
+from utils.file_utils import atomic_write
 from utils.constants import CONFIG_FILE
 from utils.logger import Logger
 
@@ -23,17 +26,16 @@ def migrate_config_data(data: dict) -> dict:
 
 def load_config():
     if not os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, 'w') as file:
-            file.write(Config().model_dump_json(indent=2))
+        atomic_write(CONFIG_FILE, Config().model_dump_json(indent=2).encode('utf-8'))
     try:
-        with open(CONFIG_FILE, 'r') as file:
-            config_data = json.load(file)
-
-            # Apply migration logic before creating the Config object
-            config_data = migrate_config_data(config_data)
-
-            config = Config(**config_data)
-            return config
+        data = Path(CONFIG_FILE).read_bytes()
+        try:
+            text = data.decode('utf-8-sig')
+        except UnicodeDecodeError:
+            # Previous Windows builds used the system encoding when saving.
+            text = data.decode(locale.getencoding())
+        config_data = migrate_config_data(json.loads(text))
+        return Config(**config_data)
     except Exception as e:
         logger.error(f"Error loading config: {e}")
         error_dialog = ErrorDialog(
@@ -50,7 +52,6 @@ def load_config():
 
 def save_config(config: Config):
     try:
-        with open(CONFIG_FILE, 'w') as file:
-            file.write(config.model_dump_json(indent=2))
+        atomic_write(CONFIG_FILE, config.model_dump_json(indent=2).encode('utf-8'))
     except (FileNotFoundError, json.JSONDecodeError) as error:
         logger.error(error)

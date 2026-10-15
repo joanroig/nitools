@@ -229,3 +229,17 @@ The obsolete local `tmp` research/qualification tree was inventoried (64,583 fil
 ### Shared sample-index coordination
 
 Battery and Maschine now also share the coordinator in `index_utils.build_sample_index`: progress, cancellation, per-file errors, optional skipped records, index/report serialization and completion status. The builders retain format-specific discovery and metadata/diagnostic processing. Their export implementations already share `SampleCollectionProcessor` and audio conversion helpers; the distinct binary formats and preview-discovery workflow remain separate. This removes the duplicated coordinator loops without introducing a configurable builder framework.
+
+## 2026-10-15: Review loops, persistence and complete local Battery corpus
+
+Failure injection reproduced a partial-write failure destroying a prior index. Indexes, reports, settings and prepared-cache writes now reuse one temporary-file/replace helper. Each file is replaced only after a successful write and close; index/report pairs are not a joint transaction, and no power-loss durability guarantee is claimed. Settings use UTF-8 and accept the system encoding for older Windows files.
+
+Cancellation previously waited for complete 16-file decode batches. The coordinator now polls cancellation while awaiting results, and spawned workers share an event checked between files. The current file still needs to finish; this is not a hard timeout for blocked I/O. Real spawned-worker tests cover cancellation during the first batch, bounded work, child crashes, pool cleanup and a successful subsequent run.
+
+The full Battery corpus exposed 1,272 rejected files that the earlier 159-kit qualification did not cover. Length-delimited records now support the observed kit profiles 163/164/168/171/174/175/178, zone profiles 152/154, v2 auxiliary path lists and v3 interleaved resources. Auxiliary archive locations are consumed without turning them into sample paths; stored POSIX absolute paths remain absolute. No filename scanning or path reconstruction was added. All 5,511 kits decode, and SHA-256 comparisons of serialized decoded results match for all 4,239 previously successful files.
+
+Five kits retain populated cells outside the saved grid. Their records and zones remain under `hidden_cells`, without fabricated pad numbers or a widened grid. Processing and export warn; only visible-grid cells are exported. A regression verifies the warning and that hidden samples are not accidentally exported. Successful decoding does not imply all referenced files are installed or that every kit has been audio-exported.
+
+Final source validation: 122 tests run, 121 passed and one real-Cocoa check skipped. Both production index builders completed against the library: 5,849 Maschine groups and 5,511 Battery kits, zero decode errors. The former repo `tmp/` research tree is absent; new corpus diagnostics use the system temporary directory. The existing package still predates these source changes. Mac, rebuilt-package and fresh native-render qualification remain outstanding. No proprietary fixtures were added, and nothing was pushed or released.
+
+A final raw-export check covered ten previously rejected Battery kits: all 257 exported files matched their source SHA-256 hashes, 25 unavailable exact references were reported without substitution, and original kit hashes stayed unchanged. Temporary exports were removed after verification.

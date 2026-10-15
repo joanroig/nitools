@@ -1,4 +1,7 @@
 import multiprocessing
+from concurrent.futures.process import BrokenProcessPool
+import os
+import time
 from pathlib import Path
 import sys
 import tempfile
@@ -11,6 +14,19 @@ from formats.maschine import parse_maschine
 from formats.battery import parse_battery
 from test_battery_format import fixture as battery_fixture
 from test_maschine_format import synthetic_archive
+
+
+def crash_decode(data):
+    os._exit(9)
+
+
+def slow_decode(data):
+    # Each child leaves evidence of files actually started, not submitted work.
+    marker = Path(data.decode()) / f'{os.getpid()}.calls'
+    with marker.open('a') as handle:
+        handle.write('started\n')
+    time.sleep(0.4)
+    return {}
 
 
 class ParallelDecodeTests(unittest.TestCase):
@@ -44,6 +60,36 @@ class ParallelDecodeTests(unittest.TestCase):
             for _, decoded, error in rows:
                 if error is None:
                     self.assertEqual(decoded, expected)
+
+    def test_cancel_while_first_batch_runs_stops_between_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / 'source'
+            path.write_bytes(directory.encode())
+            class Worker:
+                def cancel_requested(self):
+                    return bool(list(root.glob('*.calls')))
+            original = {p.pid for p in multiprocessing.active_children()}
+            with decoded_files([str(path)] * 128, slow_decode, Worker(), max_workers=2) as results:
+                self.assertEqual(list(results), [])
+            markers = list(root.glob('*.calls'))
+            self.assertTrue(markers)
+            # A running decode can finish, but no entire 16-file batch drains.
+            self.assertTrue(all(len(p.read_text().splitlines()) <= 2 for p in markers))
+            self.assertEqual({p.pid for p in multiprocessing.active_children()}, original)
+
+    def test_crashed_child_closes_pool_and_next_run_can_succeed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'source'
+            path.write_bytes(battery_fixture())
+            original = {p.pid for p in multiprocessing.active_children()}
+            with self.assertRaises(BrokenProcessPool):
+                with decoded_files([str(path)] * 64, crash_decode, max_workers=2) as results:
+                    list(results)
+            self.assertEqual({p.pid for p in multiprocessing.active_children()}, original)
+            with decoded_files([str(path)] * 64, parse_battery, max_workers=2) as results:
+                self.assertEqual(sum(error is None for _, _, error in results), 64)
+            self.assertEqual({p.pid for p in multiprocessing.active_children()}, original)
 
     def test_cancel_bounds_submissions_and_joins_children_before_returning(self):
         class Worker:

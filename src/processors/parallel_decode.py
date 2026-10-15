@@ -1,21 +1,28 @@
 """Bounded, ordered decoding; only the coordinator writes index/diagnostic files."""
 
 from collections import deque
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, wait
 from contextlib import contextmanager
 import multiprocessing
 import os
 from pathlib import Path
 
 
-
 BATCH_SIZE = 16
 MIN_PARALLEL_FILES = 64
+_cancel_event = None
+
+
+def _init_worker(cancel_event):
+    global _cancel_event
+    _cancel_event = cancel_event
 
 
 def _decode_batch(paths, decoder):
     results = []
     for path in paths:
+        if _cancel_event is not None and _cancel_event.is_set():
+            break
         try:
             results.append((path, decoder(Path(path).read_bytes()), None))
         except Exception as error:
@@ -31,9 +38,12 @@ def decoded_files(paths, decoder, worker=None, max_workers=None):
         # in the builder, keeping the single-file APIs unchanged.
         yield ((path, None, None) for path in paths)
         return
-    pool = ProcessPoolExecutor(max_workers=workers, mp_context=multiprocessing.get_context('spawn'))
+    context = multiprocessing.get_context('spawn')
+    cancel_event = context.Event()
+    pool = ProcessPoolExecutor(max_workers=workers, mp_context=context,
+                               initializer=_init_worker, initargs=(cancel_event,))
     pending = deque()
-    batches = iter(paths[i:i + BATCH_SIZE] for i in range(0, len(paths), BATCH_SIZE))
+    batches = (paths[i:i + BATCH_SIZE] for i in range(0, len(paths), BATCH_SIZE))
 
     def cancelled():
         return worker is not None and worker.cancel_requested()
@@ -47,7 +57,14 @@ def decoded_files(paths, decoder, worker=None, max_workers=None):
         while pending and not cancelled():
             # Consume in source order for deterministic indexes and unique TXT
             # filenames, while other batches continue on independent cores.
-            batch = pending.popleft().result()
+            future = pending[0]
+            while not wait((future,), timeout=0.1).done:
+                if cancelled():
+                    return
+            if cancelled():
+                return
+            pending.popleft()
+            batch = future.result()
             for result in batch:
                 if cancelled():
                     return
@@ -59,6 +76,8 @@ def decoded_files(paths, decoder, worker=None, max_workers=None):
             submit()
         yield results()
     finally:
+        # Stop queued/running batches between files, including on early exit.
+        cancel_event.set()
         for future in pending:
             future.cancel()
         pool.shutdown(wait=True, cancel_futures=True)

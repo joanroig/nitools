@@ -12,7 +12,7 @@ from models.pad_filter_config import PadFilterConfig
 
 
 class SampleCollectionProcessor(AudioExporter):
-    """Export every stored sample zone and retain the recorded pad numbers."""
+    """Export visible-grid sample zones and retain the recorded pad numbers."""
 
     def __init__(
         self, json_path, output_folder, *, kind, logger, trim_silence=False,
@@ -68,6 +68,9 @@ class SampleCollectionProcessor(AudioExporter):
     def _export_record(self, record: dict, worker_instance):
         name = str(record.get(self.kind) or "Unknown")
         samples = record.get("samples", [])
+        if record.get("hidden_cells"):
+            self.logger.warning("[%s] %s stored cells lie outside the saved grid; these are retained in the index but are not exported.",
+                                name, len(record["hidden_cells"]))
         renderer = getattr(self, '_instrument_renderer', None)
         if renderer is not None:
             from formats.maschine import parse_maschine

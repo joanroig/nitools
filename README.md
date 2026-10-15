@@ -105,13 +105,13 @@ Run from source on Mac with `bash run.sh` (Python 3.13). See the
 ### <img alt="Kits Exporter" src="resources/icons/kits.png" width="16px"> **Battery Kits Exporter**
 
 - Reads serialized cell numbers and complete sample paths instead of reconstructing names from text fragments.
-- Exports all sample zones, repeated references, empty-slot numbering, and cells above 16.
+- Exports all visible-grid sample zones, repeated references, empty-slot numbering, and cells above 16.
 - Shares audio conversion, matrix, filter, and preview options with the Groups Exporter.
 - Reports missing exact paths and conversion failures as incomplete exports; no fuzzy replacements.
 
 Maschine kit decoding now follows native archive field order and tracked object references, with no byte-pattern fallback. See [decoder architecture, validation and limits](docs/MASCHINE_FORMAT.md). Rebuild the Groups index to use the new reader and recover legacy plug-in metadata.
 
-Rebuild old JSON indexes and use a fresh output folder when upgrading from the earlier heuristic parsers. The exporters reject indexes without the current structured-decoder marker. Both exporters preserve every sample zone, including Maschine Audio-module takes. Sample export copies source audio without recreating its native processing. The Groups Exporter also offers experimental instrument rendering. Maschine kits can be prepared automatically during export or in a resumable batch queue; no per-kit manual loading is required for the validated Maschine 2/3 setups. See the [User Guide](docs/GUIDE.md#optional-instrument-rendering-64-bit) for setup and limitations.
+Rebuild old JSON indexes and use a fresh output folder when upgrading from the earlier heuristic parsers. The exporters reject indexes without the current structured-decoder marker. Both exporters preserve every visible-grid sample zone, including Maschine Audio-module takes. Battery cells retained outside the saved grid are kept separately in the index and reported, without inventing export pad numbers. Sample export copies source audio without recreating its native processing. The Groups Exporter also offers experimental instrument rendering. Maschine kits can be prepared automatically during export or in a resumable batch queue; no per-kit manual loading is required for the validated Maschine 2/3 setups. See the [User Guide](docs/GUIDE.md#optional-instrument-rendering-64-bit) for setup and limitations.
 
 See the [2.0 release notes](docs/RELEASE_NOTES_2_0.md) for upgrade instructions and the [verification record](docs/RELEASE_2_0.md) for tested scope and remaining compatibility checks.
 
@@ -154,7 +154,7 @@ Before you begin, ensure you have the following installed:
 | Launcher | **GUI: Launcher**         | `src/launcher.py`                                  | Central entry point for all three exporters.                  |
 | GUI      | **Groups Exporter GUI**   | `src/apps/groups_exporter_gui.py`                  | Extracts and processes **groups/kits** (pads, instruments).    |
 | GUI      | **Previews Exporter GUI** | `src/apps/previews_exporter_gui.py`                | Extracts and processes **audio previews** (short demo sounds). |
-| GUI      | **Battery Kits Exporter** | `src/apps/kits_exporter_gui.py`                    | Decodes Battery cells and exports every sample zone.          |
+| GUI      | **Battery Kits Exporter** | `src/apps/kits_exporter_gui.py`                    | Decodes Battery cells and exports visible-grid sample zones.  |
 | CLI      | **Kits Build**            | `src/processors/kits/build_kits_json.py`            | Creates a structured Battery kit index; export from the GUI.  |
 | CLI      | **Groups Build**          | `src/processors/groups/build_groups_json.py`       | Extract raw **group/kit metadata** into a JSON index.          |
 | CLI      | **Groups Process**        | `src/processors/groups/process_groups_json.py`     | Process groups (trim silence, normalize, etc.).                |

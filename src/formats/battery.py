@@ -63,25 +63,36 @@ def _only(chunks, tag):
     return matches[0]
 
 
-def _object(reader, common_tag):
+def _object(reader, common_tags):
     if reader.number("B") != 1:
         raise FormatError("Unsupported Battery object version")
     tag, common = reader.chunk()
-    if tag != common_tag:
-        raise FormatError(f"Expected Battery common record {common_tag}, found {tag}")
+    if tag not in common_tags:
+        raise FormatError(f"Unsupported Battery common record {tag}")
     header = reader.sub(reader.number())
     body = reader.sub(reader.number())
-    return common, header, body
+    return tag, common, header, body
 
 
-def _path(reader):
+def _path(reader, *, auxiliary=False):
     count = reader.number()
     if count > 256:
         raise FormatError("Battery path has too many components")
     parts = []
+    archived = False
     for index in range(count):
         token = reader.number("B")
-        if token == 3:
+        if token == 1:
+            # Stored POSIX root: an empty volume name followed by components.
+            if index != 0 or reader.text() != "":
+                raise FormatError("Unsupported Battery volume root")
+            parts.append("")
+        elif token == 6 and auxiliary and index == 0:
+            archived = True  # Resource namespace, not a filesystem directory.
+        elif token == 8 and auxiliary:
+            reader.text()  # Archive filename; do not turn it into a disk path.
+            archived = True
+        elif token == 3:
             parts.append("..")
         elif token in (2, 4):
             value = reader.text()
@@ -92,28 +103,43 @@ def _path(reader):
             parts.append(value)
         else:
             raise FormatError(f"Unsupported Battery path token {token}")
-    return "/".join(parts)
+    return None if archived else "/".join(parts)
 
 
 def _paths(reader):
-    if (reader.number("H"), reader.number(), reader.number()) != (2, 1, 0):
-        raise FormatError("Unsupported Battery path table version")
+    version = reader.number("H")
+    if version == 2:
+        if reader.number() != 1:
+            raise FormatError("Unsupported Battery path table header")
+        _path(reader)  # Saved base directory; references retain their own paths.
+    elif version != 3:
+        raise FormatError(f"Unsupported Battery path table version {version}")
     count = reader.number()
     if count > 100000:
         raise FormatError("Battery sample table is too large")
     paths = []
     for _ in range(count):
         offset = reader.offset + reader.position
+        if version == 3 and reader.take(8) != bytes(8):
+            raise FormatError("Unsupported Battery v3 resource header")
         paths.append({"path": _path(reader), "document_offset": offset})
-    # Per-sample timestamps (u64) and flags (u32), followed by the saved kit path.
-    reader.take(count * 12)
-    if reader.number() != 1:
-        raise FormatError("Unsupported Battery source-path record")
-    _path(reader)
-    if reader.number("H") != 1:
-        raise FormatError("Unsupported Battery path-table footer")
+        if version == 3:
+            # v3 interleaves each location with its fixed metadata record.
+            reader.take(20)
+    if version == 2:
+        reader.take(count * 12)  # Per-sample timestamps and flags.
+        # Auxiliary resources can be absent, the kit itself, and/or convolution
+        # IRs inside an NKX archive. They are not pad sample locations.
+        auxiliary_count = reader.number()
+        if auxiliary_count > 100000:
+            raise FormatError("Battery auxiliary path table is too large")
+        for _ in range(auxiliary_count):
+            _path(reader, auxiliary=True)
+        for _ in range(auxiliary_count):
+            if reader.number("H") not in (0, 1):
+                raise FormatError("Unsupported Battery auxiliary path flags")
     reader.finish()
-    return paths
+    return paths, version
 
 
 def _find_header(root, type_id):
@@ -149,11 +175,12 @@ def decode_document(raw: bytes):
 
 def parse_battery(raw: bytes) -> dict:
     top = _chunks(decode_document(raw))
-    paths = _paths(_only(top, 75))
+    paths, path_version = _paths(_only(top, 75))
     kit = _only(top, 40)
-    common, header, body = _object(kit, 171)
+    kit_schemas = {163: 93, 164: 89, 168: 99, 171: 99, 174: 113, 175: 113, 178: 113}
+    kit_tag, common, header, body = _object(kit, kit_schemas)
     kit.finish()
-    if len(common.data) != 99:
+    if len(common.data) != kit_schemas[kit_tag]:
         raise FormatError("Unsupported Battery grid-settings version")
     rows, columns = struct.unpack_from("<II", common.data, 48)
     if not (1 <= rows <= 8 and 1 <= columns <= 16):
@@ -168,7 +195,7 @@ def parse_battery(raw: bytes) -> dict:
     cells = []
     for cell_id in range(count):
         cell_offset = cell_reader.offset + cell_reader.position
-        _, properties, _ = _object(cell_reader, 149)
+        _, _, properties, _ = _object(cell_reader, (149,))
         cells.append({"name": properties.text(), "cell_id": cell_id,
                       "document_offset": cell_offset, "zones": []})
     cell_reader.finish()
@@ -177,18 +204,17 @@ def parse_battery(raw: bytes) -> dict:
     zone_count = zone_reader.number()
     if zone_count > 100000:
         raise FormatError("Battery zone table is too large")
+    zone_schemas = {152: (76, 42), 154: (82, 48)}
     for zone_id in range(zone_count):
         zone_offset = zone_reader.offset + zone_reader.position
         cell_id = zone_reader.number()
-        _, properties, _ = _object(zone_reader, 152)
-        if len(properties.data) != 76:
+        zone_tag, _, properties, _ = _object(zone_reader, zone_schemas)
+        size, sample_offset = zone_schemas[zone_tag]
+        if len(properties.data) != size:
             raise FormatError("Unsupported Battery zone-settings version")
-        sample_index = struct.unpack_from("<I", properties.data, 42)[0]
+        sample_index = struct.unpack_from("<I", properties.data, sample_offset)[0]
         if cell_id >= count or sample_index >= len(paths):
             raise FormatError("Battery zone references an absent cell or sample")
-        row, column = divmod(cell_id, 16)
-        if row >= rows or column >= columns:
-            raise FormatError("Battery zone is outside the stored grid")
         cells[cell_id]["zones"].append({
             "zone": zone_id, "sample_index": sample_index,
             "path": paths[sample_index]["path"],
@@ -208,6 +234,12 @@ def parse_battery(raw: bytes) -> dict:
                 "type": "empty" if not refs else "sample" if len(refs) == 1 else "multisample",
                 "path": refs[0] if refs else "", "paths": refs,
             })
+    # Battery can retain cells after the visible grid has been reduced. Keep
+    # them as stored metadata, without inventing visible pad numbers or widening
+    # the saved layout. They are not part of the active sample export.
+    hidden = [cell for cell in cells if cell["zones"]
+              and (cell["cell_id"] // 16 >= rows or cell["cell_id"] % 16 >= columns)]
     return {"kit": name, "rows": rows, "columns": columns, "samples": samples,
             "sample_table": paths, "zone_count": zone_count,
-            "parser": "structured-v1", "format": "Battery 4 / path table 2"}
+            **({"hidden_cells": hidden} if hidden else {}),
+            "parser": "structured-v1", "format": f"Battery 4 / path table {path_version}"}

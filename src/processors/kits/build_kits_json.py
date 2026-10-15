@@ -34,6 +34,9 @@ def process_nbkt_file(input_file: str, output_folder: str, generate_txt: bool = 
             for sample in kit["samples"] for path in sample["paths"]
         ) + "\n", encoding="utf-8")
         kit["txt_file"] = str(target)
+    if kit.get("hidden_cells"):
+        logger.warning("%s has %s populated cells outside its saved grid; retained in the index, not assigned export pads.",
+                       kit["kit"], len(kit["hidden_cells"]))
     logger.info("Decoded kit: %s (%s x %s, %s sample zones)", kit["kit"], kit["rows"], kit["columns"], kit["zone_count"])
     return kit
 

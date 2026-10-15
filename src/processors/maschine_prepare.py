@@ -10,7 +10,8 @@ import time
 
 from formats.maschine import parse_maschine
 from models.render_options import RenderOptions
-from processors.maschine_render import _atomic_write, cache_folder, load_prepared, plugin_path, save_prepared, stop_process
+from utils.file_utils import atomic_write
+from processors.maschine_render import cache_folder, load_prepared, plugin_path, save_prepared, stop_process
 
 logger = logging.getLogger('MaschinePreparer')
 
@@ -152,13 +153,13 @@ def prepare_index(json_path, options, worker_instance=None):
                 report['errors'] += 1
                 logger.error('[%s/%s] %s: %s', number, len(records), label, exc)
             report['results'].append(entry)
-            _atomic_write(report_path, json.dumps(report, indent=2, ensure_ascii=False).encode('utf-8'))
+            atomic_write(report_path, json.dumps(report, indent=2, ensure_ascii=False).encode('utf-8'))
     except KeyboardInterrupt:
         report['cancelled'] = True
         raise
     finally:
         session.close()
-        _atomic_write(report_path, json.dumps(report, indent=2, ensure_ascii=False).encode('utf-8'))
+        atomic_write(report_path, json.dumps(report, indent=2, ensure_ascii=False).encode('utf-8'))
     logger.info('Preparation %s: %s prepared, %s cached, %s did not need Maschine, %s errors.%s',
                 'cancelled' if report['cancelled'] else 'finished', report['prepared'], report['cached'],
                 report['unnecessary'], report['errors'], f' Report: {report_path}' if report_path else '')

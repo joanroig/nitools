@@ -55,23 +55,32 @@ def child(field, tag, kind, obj):
     return pack("I4sI", field, tag, kind) + obj
 
 
-def fixture(paths=None, assignments=None, rows=4, columns=4):
+def fixture(paths=None, assignments=None, rows=4, columns=4, *,
+            kit_tag=171, zone_tag=152, path_version=2, auxiliary_paths=None, base_path=None):
     paths = paths if paths is not None else ["../../Samples/Kick\u00a0é.wav", "../../Samples/Lick G#.wav"]
     # Serialized zone order is intentionally different from cell/display order.
     assignments = assignments if assignments is not None else [(16, 1), (0, 0), (16, 0)]
-    common = bytearray(99)
+    common = bytearray({163: 93, 164: 89, 168: 99, 171: 99, 174: 113, 175: 113, 178: 113}[kit_tag])
     struct.pack_into("<II", common, 48, rows, columns)
     cells = pack("I", 128) + b"".join(
         legacy_object(149, b"", text(f"Cell {index}") + bytes(36)) for index in range(128)
     )
     zones = pack("I", len(assignments))
     for cell, sample in assignments:
-        properties = bytearray(76)
-        struct.pack_into("<I", properties, 42, sample)
-        zones += pack("I", cell) + legacy_object(152, b"", properties)
-    kit = legacy_object(171, common, text("Fixture"), chunk(51, cells) + chunk(52, zones))
-    table = pack("HIII", 2, 1, 0, len(paths)) + b"".join(map(path_record, paths))
-    table += bytes(12 * len(paths)) + pack("I", 1) + path_record("Fixture.nbkt") + pack("H", 1)
+        properties = bytearray(76 if zone_tag == 152 else 82)
+        struct.pack_into("<I", properties, 42 if zone_tag == 152 else 48, sample)
+        zones += pack("I", cell) + legacy_object(zone_tag, b"", properties)
+    kit = legacy_object(kit_tag, common, text("Fixture"), chunk(51, cells) + chunk(52, zones))
+    if path_version == 2:
+        table = pack("HI", 2, 1) + (pack("I", 0) if base_path is None else base_path)
+        table += pack("I", len(paths)) + b"".join(map(path_record, paths))
+        auxiliary_paths = [(path_record("Fixture.nbkt"), 1)] if auxiliary_paths is None else auxiliary_paths
+        table += bytes(12 * len(paths)) + pack("I", len(auxiliary_paths))
+        table += b"".join(path for path, flag in auxiliary_paths)
+        table += b"".join(pack("H", flag) for path, flag in auxiliary_paths)
+    else:
+        table = pack("HI", path_version, len(paths))
+        table += b"".join(bytes(8) + path_record(path) + bytes(20) for path in paths)
     legacy = chunk(40, kit) + chunk(75, table)
     inner_header = class_header(b"DSIN", 109, pack("IQ", 1, len(legacy)) + legacy + bytes(16))
     inner = ni_object(BASE, child(0, b"DSIN", 109, ni_object(inner_header)))
@@ -112,8 +121,58 @@ class BatteryFormatTests(unittest.TestCase):
         self.assertEqual(len(kit["samples"][0]["paths"]), 2)
         self.assertEqual(kit["samples"][1]["paths"], kit["samples"][0]["paths"][:1])
 
+    def test_explicit_kit_and_zone_versions_preserve_assignments(self):
+        expected = parse_battery(fixture())
+        for tag in (163, 164, 168, 171, 174, 175, 178):
+            for zone in (152, 154):
+                with self.subTest(kit=tag, zone=zone):
+                    actual = parse_battery(fixture(kit_tag=tag, zone_tag=zone))
+                    self.assertEqual((actual['rows'], actual['columns']), (4, 4))
+                    self.assertEqual([(s['cell_id'], s['paths']) for s in actual['samples']],
+                                     [(s['cell_id'], s['paths']) for s in expected['samples']])
+
+    def test_auxiliary_archive_paths_are_not_sample_references(self):
+        archive = (pack('I', 4) + b'\x06\x02' + text('Impulse Responses')
+                   + b'\x08' + text('IR.nkx') + b'\x04' + text('Room.wav'))
+        for auxiliary in ([], [(archive, 0)], [(path_record('Fixture.nbkt'), 1), (archive, 0)]):
+            result = parse_battery(fixture(auxiliary_paths=auxiliary))
+            self.assertEqual(result['zone_count'], 3)
+            self.assertFalse(any('Room.wav' in r['path'] for r in result['sample_table']))
+        with self.assertRaises(FormatError):
+            parse_battery(fixture(auxiliary_paths=[(archive[:-1], 0)]))
+        with self.assertRaises(FormatError):
+            parse_battery(fixture(auxiliary_paths=[(archive, 9)]))
+        with self.assertRaises(FormatError):
+            _path(Reader(archive))  # Archive members are not filesystem samples.
+
+    def test_posix_root_and_saved_base_directory(self):
+        root = pack('I', 2) + b'\x01' + text('') + b'\x02' + text('Library')
+        absolute = pack('I', 3) + b'\x01' + text('') + b'\x02' + text('Samples') + b'\x04' + text('é.wav')
+        self.assertEqual(_path(Reader(absolute)), '/Samples/é.wav')
+        # Stored base paths must not change already serialized sample references.
+        self.assertEqual(parse_battery(fixture(base_path=root))['samples'][0]['paths'],
+                         parse_battery(fixture())['samples'][0]['paths'])
+
+    def test_v3_resource_order_is_kept_for_zone_indices(self):
+        result = parse_battery(fixture(paths=['Kit.nbkt', 'Samples/One.wav', 'Samples/Two.wav'],
+                                      assignments=[(0, 2), (1, 1)], kit_tag=178, zone_tag=154, path_version=3))
+        self.assertEqual(result['samples'][0]['paths'], ['Samples/Two.wav'])
+        self.assertEqual(result['samples'][1]['paths'], ['Samples/One.wav'])
+        self.assertEqual(result['format'], 'Battery 4 / path table 3')
+        with self.assertRaises(FormatError):
+            parse_battery(fixture(path_version=4))
+
+    def test_hidden_cells_are_retained_without_changing_visible_grid(self):
+        result = parse_battery(fixture(assignments=[(0, 0), (75, 1)], columns=12))
+        self.assertEqual((result['rows'], result['columns']), (4, 12))
+        self.assertEqual(len(result['samples']), 48)
+        self.assertEqual(result['hidden_cells'][0]['cell_id'], 75)
+        self.assertNotIn('pad', result['hidden_cells'][0])
+        self.assertEqual(result['hidden_cells'][0]['zones'][0]['sample_index'], 1)
+        self.assertEqual(result['zone_count'], 2)
+
     def test_invalid_zone_references_fail_instead_of_guessing(self):
-        for assignments in ([(0, 2)], [(128, 0)], [(4, 0)]):
+        for assignments in ([(0, 2)], [(128, 0)]):
             with self.subTest(assignments=assignments), self.assertRaises(FormatError):
                 parse_battery(fixture(assignments=assignments))
 

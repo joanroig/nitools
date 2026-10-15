@@ -84,6 +84,28 @@ class SampleExportTests(unittest.TestCase):
         self.assertEqual(processor.summary["missing"], 1)
         self.assertEqual(list(self.output.rglob("*.wav")), [])
 
+    def test_hidden_battery_cells_warn_without_inventing_export_pads(self):
+        from formats.battery import parse_battery
+        from test_battery_format import fixture
+
+        self.sample("Samples/Visible.wav")
+        self.sample("Samples/Hidden.wav")
+        decoded = parse_battery(fixture(
+            paths=["../../Samples/Visible.wav", "../../Samples/Hidden.wav"],
+            assignments=[(0, 0), (75, 1)], columns=12,
+        ))
+        with self.assertLogs("KitsProcessor", level="WARNING") as messages:
+            processor, result = self.process(decoded["samples"], record_fields={
+                "hidden_cells": decoded["hidden_cells"],
+            })
+        self.assertEqual(result, 0)
+        self.assertEqual(processor.summary["exported"], 1)
+        self.assertEqual([p.name for p in self.output.rglob("*.wav")], ["01_Visible.wav"])
+        self.assertIn("outside the saved grid", "\n".join(messages.output))
+        saved = json.loads((self.root / "index.json").read_text(encoding="utf-8"))[0]
+        self.assertEqual(saved["hidden_cells"][0]["cell_id"], 75)
+        self.assertNotIn("pad", saved["hidden_cells"][0])
+
     def test_absolute_path_is_used_without_rebasing(self):
         source = self.sample("Samples/Elsewhere.wav")
         self.assertEqual(resolve_sample_path(str(source), self.root / "wrong"), source)

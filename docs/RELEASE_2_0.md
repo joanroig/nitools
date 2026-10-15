@@ -2,12 +2,12 @@
 
 Release target as of 2026-10-14: **2.0.0**. The incompatible kit/group index change requires a major version. Local Windows qualification is recorded below; publication requires the GitHub release builds to pass. See [release notes](RELEASE_NOTES_2_0.md) for the user-facing upgrade instructions and compatibility limits.
 
-The latest sequential Maschine kit decoder is source-tested against 5,849 kits and the 109-test suite. The previously qualified Windows package predates this change and needs rebuilding/requalification before distribution. See [decoder scope and evidence](MASCHINE_FORMAT.md).
+The current source passes 121 tests with one Mac-only test skipped (122 run, 2026-10-15). Full index builds decode 5,849 Maschine groups and 5,511 Battery kits without errors. The previously qualified Windows package predates the decoder/indexing changes and needs rebuilding/requalification before distribution. See [decoder scope and evidence](MASCHINE_FORMAT.md).
 
 ## Changes for 2.0
 
 - Battery and Maschine indexes use structured binary decoding of stored sample references, cell/slot numbers and sample zones. Missing exact references fail visibly instead of selecting similar filenames.
-- Exports retain sample names and every decoded zone, including Battery cells above 16 and Maschine Audio-module takes.
+- Exports retain sample names and every visible-grid zone, including Battery cells above 16 and Maschine Audio-module takes. Populated Battery cells outside the saved grid remain in the index with warnings; they are not assigned export pads.
 - Groups offers experimental instrument rendering (Windows qualified fixtures; Mac adapter unverified): direct installed VST2 presets, or internal/hosted instruments through the installed Maschine 2/3 VST3. Kits prepare automatically during export or through a resumable batch queue, with an assisted single-kit fallback. Raw sample export remains independent of rendering.
 - Large Battery and Group scans share a bounded pool of up to eight decoder processes; all three audio exporters use bounded parallel conversion. Live progress, cancellation, safe output replacement and incomplete-result reporting are shared.
 - All three windows have consistent Process/Export tabs, audio settings, expandable options and a compact Activity card with follow, copy, clear and a larger log reader.
@@ -23,6 +23,9 @@ Saved matrix/filter/audio preferences remain active. Review the summary on colla
 
 | Check | Evidence / result |
 | --- | --- |
+| Current source review | 122 tests run: 121 passed, one Mac-only Cocoa check skipped (2026-10-15). Added failure injection for index/settings writes, cancellation during the first decode batch, child-crash cleanup/restart, additional Battery record/path versions and hidden-cell export warnings. This does not requalify the older package or native audio hosts. |
+| Expanded Battery corpus | 5,511/5,511 kits decoded, recovering 1,272 previously rejected files; all 4,239 previously successful decoded records remain identical. Five kits have populated cells outside their saved grid, preserved separately without export pad numbers. Both full production index builders completed with zero decode errors. This is not a full-library audio export or path-resolution claim. |
+| Recovered Battery export check | Ten previously rejected kits: 257 exported samples matched source SHA-256 hashes, 25 unavailable exact references were reported, and original kit hashes were unchanged. No substitute paths were selected. |
 | Automated suite | 106 tests run on Windows: 105 passed and one Mac-only Cocoa check skipped, Python 3.14.5 and PySide6 6.10.3 (2026-10-14), including parser bounds, resolution, all three exporters, atomic failures, render/preparation cancellation/crashes/timeouts, batch checkpoints and host reuse, prepared-state validation, GUI settings/layout/activity, local product metadata and package-content rules. |
 | Installed Maschine corpus | 5,849 groups decoded; 140,354 nonempty references resolved. This is a decoding/resolution check, not an export of every referenced sound. A subsequent native app run also showed 5,849 decoded with zero errors. |
 | Raw exports | Earlier qualification exported 5,485 samples from 159 Battery kits and 139 Maschine groups with source/output SHA-256 equality and unchanged input files. |

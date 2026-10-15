@@ -1,6 +1,8 @@
 
 import re
 import os
+import tempfile
+from pathlib import Path
 
 def sanitize(s: str):
     """
@@ -31,3 +33,18 @@ def ensure_unique_path(folder: str, filename: str) -> str:
         candidate = f"{base}_{n}{ext}"
         n += 1
     return os.path.join(folder, candidate)
+
+
+def atomic_write(path, data):
+    """Replace a file only after all bytes have been written and closed."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=path.parent, prefix='.nitools-', delete=False) as handle:
+            temporary = Path(handle.name)
+            handle.write(data)
+        temporary.replace(path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)

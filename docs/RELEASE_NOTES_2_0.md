@@ -17,8 +17,9 @@ Saved audio, matrix and filter preferences remain active. Review those settings 
 ## Changes
 
 - Decode complete stored sample references, original pad/cell numbers and multiple sample zones. Missing files are reported with their exact references instead of guessing replacements.
-- Support Battery cells above 16, older supported Maschine archive versions and Maschine Audio-module samples.
-- Process large Maschine libraries with bounded parallel decoding. All three exporters share parallel audio conversion, live progress, cancellation and atomic output writes.
+- Support Battery cells above 16, additional kit/zone and path-table versions, older supported Maschine archive versions and Maschine Audio-module samples. Battery cells retained outside the saved grid stay in the index with warnings and are not assigned export pads.
+- Process large Battery and Maschine libraries with shared bounded parallel decoding. Cancellation stops between files instead of finishing whole batches. All three exporters share parallel audio conversion, live progress, cancellation and atomic output writes.
+- Protect indexes, reports and settings from partial-write corruption; save Unicode settings consistently as UTF-8 while accepting older Windows-encoded settings.
 - Export readable filenames such as `01_Kick.wav` and `01_02_Kick.wav`; preserve slot numbering and separate sample zones.
 - Use consistent Process/Export tabs and audio settings across Groups, Kits and Previews. The Activity panel supports following new messages, copying logs and opening a larger reader.
 - Optionally render external VST2 instruments from their saved presets on 64-bit Windows.

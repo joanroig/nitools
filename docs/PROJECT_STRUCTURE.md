@@ -30,6 +30,7 @@ script that rewrote version constraints to PyPI's newest versions is removed.
 
 Legacy `src/processors/kits/old/` experiments, the obsolete UPID generation
 debug action and unused development dependencies are removed. Earlier commits
-retain source history. `in/`, `out/`, local research in `tmp/`, caches and the
-current build are ignored local data, not source or release inputs; do not
-delete them as part of source cleanup.
+retain source history. `in/`, `out/`, caches and the current build are ignored
+local data, not source or release inputs; preserve them during source cleanup.
+The obsolete local `tmp/` research tree is no longer present (checked
+2026-10-15). Tests use temporary directories and do not require that tree.

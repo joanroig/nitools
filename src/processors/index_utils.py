@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 from processors.parallel_decode import decoded_files
+from utils.file_utils import atomic_write
 
 
 def report_progress(worker, completed, total, message):
@@ -68,11 +69,11 @@ def build_sample_index(sources, destination, decoder, process_file, *,
     if cancelled():
         logger.info("%s JSON build cancelled by user.", label.capitalize())
         return 1
-    destination.write_text(json.dumps(records, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    atomic_write(destination, (json.dumps(records, indent=2, ensure_ascii=False) + "\n").encode("utf-8"))
     report_path = destination.with_suffix(".report.json")
     report = {"parser": "structured-v1", "files": len(sources),
               "decoded": len(records), "errors": errors}
-    report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    atomic_write(report_path, (json.dumps(report, indent=2, ensure_ascii=False) + "\n").encode("utf-8"))
     incomplete = bool(errors) or not sources
     log = logger.error if incomplete else logger.info
     log("%s index %s: %s decoded, %s errors. Saved to %s; details: %s",

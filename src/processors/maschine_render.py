@@ -9,12 +9,12 @@ import platform
 import plistlib
 import sys
 from pathlib import Path
-import tempfile
 import threading
 import time
 
 from appdirs import user_cache_dir
 
+from utils.file_utils import atomic_write
 from formats.maschine import parse_maschine
 from formats.maschine_project import route_kit_preset
 
@@ -70,26 +70,13 @@ def cache_folder(options):
     return Path(options.cache_folder) if options.cache_folder else Path(user_cache_dir('NITools', False)) / 'maschine'
 
 
-def _atomic_write(path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = None
-    try:
-        with tempfile.NamedTemporaryFile(dir=path.parent, prefix='.nitools-', delete=False) as handle:
-            temporary = Path(handle.name)
-            handle.write(data)
-        temporary.replace(path)
-    finally:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
-
-
 def save_prepared(source, preset, options):
     decoded = parse_maschine(Path(source).read_bytes())
     names = [s['name'] for s in decoded['samples']]
     routed = route_kit_preset(preset, names, decoded['group'])
     target, receipt = cache_paths(source, options)
-    _atomic_write(target, routed)
-    _atomic_write(receipt, json.dumps(dict(schema=1, source=str(Path(source).resolve()),
+    atomic_write(target, routed)
+    atomic_write(receipt, json.dumps(dict(schema=1, source=str(Path(source).resolve()),
         group=decoded['group'], sha256=hashlib.sha256(routed).hexdigest()), indent=2).encode())
     return target
 
